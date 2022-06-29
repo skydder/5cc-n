@@ -1,17 +1,33 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
+
+void Error(char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    exit(1);
+}
+void println(char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stdout, fmt, ap);
+    fprintf(stdout, "\n");
+    return ;
+}
 
 int main(int argc, char **argv) {
     if (argc != 2) {
-        fprintf(stderr, "引数の個数が正しくありません\n");
+        Error("引数の個数が正しくありません");
         return 1;
     }
     
-    printf(".intel_syntax noprefix\n");
-    printf(".globl main\n");
-    printf("main:\n");
-    printf("  mov rax, %d\n", atoi(argv[1]));
-    printf("  ret\n");
+    println(".intel_syntax noprefix");
+    println(".globl main");
+    println("main:");
+    println("\tmov rax, %d", atoi(argv[1]));
+    println("\tret");
     
     return 0;
 }
