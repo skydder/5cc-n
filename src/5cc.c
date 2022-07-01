@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 
 void Error(char *fmt, ...) {
     va_list ap;
@@ -44,20 +45,9 @@ Token *NewToken(TokenKind TK, char *start, char *end) {
     new->len = end - start;
     return new;
 }
-bool ConsumeToken(Token *tok, char op) {
-    if (tok->kind != TK_RESERVED || tok->str[0] != op) {
-        return false;
-    }
-    tok = tok->next;
-    return true;
-}
-void ExpectToken(Token *tok,char op) {
-    if (!ConsumeToken(tok, op)) {
-         Error("It's not '%c'", op);
-    }
-}
+
 bool IsTokenEqual(Token *tok, char *op) {
-  return memcmp(tok->str, op, tok->len) == 0 && op[tok->len] == '\0';
+  return tok->kind == TK_RESERVED && memcmp(tok->str, op, tok->len) == 0 && op[tok->len] == '\0';
 }
 
 Token *SkipToken(Token *tok, char *s) {
@@ -78,7 +68,7 @@ bool IsTokenAtEof(Token *tok) {
   return tok->kind == TK_EOF;
 }
 
-Token *tokenize(char *p) {
+Token *Tokenize(char *p) {
     Token head;
     head.next = NULL;
     Token *cur = &head;
@@ -88,7 +78,7 @@ Token *tokenize(char *p) {
             p++;
             continue;
         }
-        if (*p =='+' || *p == '-') {
+        if (ispunct(*p)) {
             cur = cur->next = NewToken(TK_RESERVED, p, p + 1);
             p++;
             continue;
@@ -107,34 +97,159 @@ Token *tokenize(char *p) {
     return head.next;
 }
 
+//===================================================================
+
+typedef struct Node Node;
+typedef enum {
+    ND_ADD,
+    ND_SUB,
+    ND_MUL,
+    ND_DIV,
+    ND_NUM,
+} NodeKind;
+struct Node {
+    NodeKind kind;
+    Node *lhs;
+    Node *rhs;
+    int val;
+};
+Node *NewNodeKind(NodeKind kind) {
+    Node *new = calloc(sizeof(Node), 1);
+    new->kind = kind;
+    return new;
+}
+
+Node *NewNodeBinary(NodeKind kind, Node *lhs, Node *rhs) {
+    Node *new = NewNodeKind(kind);
+    new->lhs = lhs;
+    new->rhs = rhs;
+    return new;
+}
+Node *NewNodeNum(int val) {
+    Node *new = NewNodeKind(ND_NUM);
+    new->val = val;
+    return new;
+}
+
+// expr = mul ("+" mul | "-" mul)*
+// mul = primary ("*" primary | "/" primary)*
+// primary = "(" expr ")" | num
+
+Node *primary(Token **rest, Token *tok);
+Node *mul(Token **rest, Token *tok);
+Node *expr(Token **rest, Token *tok);
+
+Node *expr(Token **rest, Token *tok) {
+    Node *node = mul(&tok, tok);
+
+    for (;;) {
+        if (IsTokenEqual(tok, "+")) {
+            node = NewNodeBinary(ND_ADD, node, mul(&tok, tok->next));
+            continue;
+        }
+        if (IsTokenEqual(tok, "-")) {
+            node = NewNodeBinary(ND_SUB, node, mul(&tok, tok->next));
+            continue;
+        }
+        *rest = tok;
+        return node;
+    }
+}
+Node *mul(Token **rest, Token *tok) {
+    Node *node = primary(&tok, tok);
+
+    for (;;) {
+        if (IsTokenEqual(tok, "*")) {
+            node = NewNodeBinary(ND_MUL, node, primary(&tok, tok->next));
+            continue;
+        }
+        if (IsTokenEqual(tok, "/")) {
+            node = NewNodeBinary(ND_DIV, node, primary(&tok, tok->next));
+            continue;
+        }
+        *rest = tok;
+        return node;
+    }
+}
+ 
+Node *primary(Token **rest, Token *tok) {
+    if (IsTokenEqual(tok, "(")) {
+        Node *node = expr(&tok, tok->next);
+        *rest = SkipToken(tok, ")");
+        return node;
+    }
+    if (tok->kind == TK_NUM) {
+        Node *node = NewNodeNum(tok->val);
+        *rest = tok->next;
+        return node;
+    }
+    Error("Something is wrong");
+}
+
+//===================================================================
+static int depth;
+
+static void push(void) {
+  println("\tpush %%rax");
+  depth++;
+}
+
+static void pop(char *arg) {
+  println("\tpop %s", arg);
+  depth--;
+}
+
+static void gen_expr(Node *node) {
+    if (node->kind == ND_NUM) {
+        println("\tmov $%d, %%rax", node->val);
+        return;
+    }
+
+    gen_expr(node->rhs);
+    push();
+    gen_expr(node->lhs);
+    pop("%rdi");
+
+    switch (node->kind) {
+        case ND_ADD:
+            println("\tadd %%rdi, %%rax");
+            return;
+        case ND_SUB:
+            println("\tsub %%rdi, %%rax");
+            return;
+        case ND_MUL:
+            println("\timul %%rdi, %%rax");
+            return;
+        case ND_DIV:
+            println("\tcqo");
+            println("\tidiv %%rdi");
+            return;
+    }
+
+    Error("invalid expression");
+}
+//===================================================================
 int main(int argc, char **argv) {
     if (argc != 2) {
         Error("引数の個数が正しくありません");
         return 1;
     }
-    Token *token = tokenize(argv[1]);
+    Token *token = Tokenize(argv[1]);
 
-    println(".intel_syntax noprefix");
+    
+    
+    Node *node = expr(&token, token);
+
+    if (token->kind != TK_EOF)
+        Error("extra token");
+
     println(".globl main");
     println("main:");
-    println("\tmov rax, %d", ExpectTokenNum(&token));
-    //token = token->next;
 
-    while (!IsTokenAtEof(token)) {
-        if (IsTokenEqual(token, "+")) {
-            token = token->next;
-            println("\tadd rax, %d", ExpectTokenNum(&token));
-            continue;
-        }
-        if (IsTokenEqual(token, "+")) {
-            token = token->next;
-            println("\tsub rax, %d", ExpectTokenNum(&token));
-            continue;
-        }
-
-        Error("something is wrong");
-    }
+    // Traverse the AST to emit assembly.
+    gen_expr(node);
     println("\tret");
-    
+
+    assert(depth == 0);
     return 0;
 }
