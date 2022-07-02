@@ -1,3 +1,4 @@
 src/*.o
 src/5cc
+src/tmp*
 .vscode
