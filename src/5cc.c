@@ -105,6 +105,7 @@ typedef enum {
     ND_SUB,
     ND_MUL,
     ND_DIV,
+    ND_NEG,
     ND_NUM,
 } NodeKind;
 struct Node {
@@ -125,19 +126,29 @@ Node *NewNodeBinary(NodeKind kind, Node *lhs, Node *rhs) {
     new->rhs = rhs;
     return new;
 }
+
 Node *NewNodeNum(int val) {
     Node *new = NewNodeKind(ND_NUM);
     new->val = val;
     return new;
 }
+Node *NewNodeUnary(NodeKind kind, Node *lhs) {
+    Node *new = NewNodeKind(kind);
+    new->lhs = lhs;
+    return new;
+}
 
+//===================================================================
 // expr = mul ("+" mul | "-" mul)*
-// mul = primary ("*" primary | "/" primary)*
+// mul = unary ("*" unary | "/" unary)*
+// unary   = ("+" | "-")? primary
 // primary = "(" expr ")" | num
-
+//===================================================================
 Node *primary(Token **rest, Token *tok);
+Node *unary(Token **rest, Token *tok);
 Node *mul(Token **rest, Token *tok);
 Node *expr(Token **rest, Token *tok);
+//===================================================================
 
 Node *expr(Token **rest, Token *tok) {
     Node *node = mul(&tok, tok);
@@ -156,22 +167,32 @@ Node *expr(Token **rest, Token *tok) {
     }
 }
 Node *mul(Token **rest, Token *tok) {
-    Node *node = primary(&tok, tok);
+    Node *node = unary(&tok, tok);
 
     for (;;) {
         if (IsTokenEqual(tok, "*")) {
-            node = NewNodeBinary(ND_MUL, node, primary(&tok, tok->next));
+            node = NewNodeBinary(ND_MUL, node, unary(&tok, tok->next));
             continue;
         }
         if (IsTokenEqual(tok, "/")) {
-            node = NewNodeBinary(ND_DIV, node, primary(&tok, tok->next));
+            node = NewNodeBinary(ND_DIV, node, unary(&tok, tok->next));
             continue;
         }
         *rest = tok;
         return node;
     }
 }
- 
+
+Node *unary(Token **rest, Token *tok) {
+    if (IsTokenEqual(tok, "+")) {
+        return unary(rest, tok->next);
+    }
+    if (IsTokenEqual(tok, "-")) {
+        return NewNodeUnary(ND_NEG, unary(rest, tok->next));
+    }
+    return primary(rest, tok);
+}
+
 Node *primary(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "(")) {
         Node *node = expr(&tok, tok->next);
@@ -200,8 +221,13 @@ static void pop(char *arg) {
 }
 
 static void gen_expr(Node *node) {
-    if (node->kind == ND_NUM) {
+    switch (node->kind) {
+    case ND_NUM:
         println("\tmov $%d, %%rax", node->val);
+        return;
+    case ND_NEG:
+        gen_expr(node->lhs);
+        println("\tneg %%rax");
         return;
     }
 
@@ -211,19 +237,19 @@ static void gen_expr(Node *node) {
     pop("%rdi");
 
     switch (node->kind) {
-        case ND_ADD:
-            println("\tadd %%rdi, %%rax");
-            return;
-        case ND_SUB:
-            println("\tsub %%rdi, %%rax");
-            return;
-        case ND_MUL:
-            println("\timul %%rdi, %%rax");
-            return;
-        case ND_DIV:
-            println("\tcqo");
-            println("\tidiv %%rdi");
-            return;
+    case ND_ADD:
+        println("\tadd %%rdi, %%rax");
+        return;
+    case ND_SUB:
+        println("\tsub %%rdi, %%rax");
+        return;
+    case ND_MUL:
+        println("\timul %%rdi, %%rax");
+        return;
+    case ND_DIV:
+        println("\tcqo");
+        println("\tidiv %%rdi");
+        return;
     }
 
     Error("invalid expression");
@@ -235,21 +261,17 @@ int main(int argc, char **argv) {
         return 1;
     }
     Token *token = Tokenize(argv[1]);
-
-    
-    
     Node *node = expr(&token, token);
 
     if (token->kind != TK_EOF)
         Error("extra token");
 
+
     println(".globl main");
     println("main:");
-
-    // Traverse the AST to emit assembly.
     gen_expr(node);
     println("\tret");
-
     assert(depth == 0);
+
     return 0;
 }
