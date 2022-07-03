@@ -6,6 +6,8 @@
 #include <ctype.h>
 #include <assert.h>
 
+char *UserInput;
+
 void Error(char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -67,6 +69,41 @@ int ExpectTokenNum(Token **tok) {
 bool IsTokenAtEof(Token *tok) {
   return tok->kind == TK_EOF;
 }
+bool is_alnum(char c) {
+    return ('a' <= c && c <= 'z') ||
+           ('A' <= c && c <= 'Z') ||
+           ('0' <= c && c <= '9') ||
+           (c == '_');
+}
+
+bool IsStrSame(char *A, char *B) {
+    return (strncmp(A, B, strlen(B)) == 0);
+}
+
+bool IsStrReserved(char *A, char *reserved) {
+    return IsStrSame(A, reserved) && !is_alnum(A[strlen(reserved)]);
+}
+
+Token *NewTokenReserved(char **start) {
+    Token *new = NULL;
+    struct {
+        char *word;
+        int len;
+    } symbol[] = {
+        {"<=", 2}, {">=", 2}, {"==", 2}, {"!=", 2},
+        {"-", 1}, {"+", 1}, {"/", 1}, {"*", 1},
+        {"<", 1}, {">", 1}, {"(", 1}, {")", 1},
+        {NULL, 0},
+    };
+    for (int i = 0; symbol[i].word; i++) {
+        if (IsStrSame(*start, symbol[i].word)) {
+            new = NewToken(TK_RESERVED, *start, *start + symbol[i].len);
+            *start = *start + symbol[i].len;
+            return new;
+        }
+    }
+    return new;
+}
 
 Token *Tokenize(char *p) {
     Token head;
@@ -78,11 +115,13 @@ Token *Tokenize(char *p) {
             p++;
             continue;
         }
-        if (ispunct(*p)) {
-            cur = cur->next = NewToken(TK_RESERVED, p, p + 1);
-            p++;
+
+        Token *tok = NewTokenReserved(&p);
+        if (tok) {
+            cur = cur->next = tok;
             continue;
         }
+
         if (isdigit(*p)) {
             cur = cur->next = NewToken(TK_NUM, p, p);
             char *q = p;
@@ -107,6 +146,10 @@ typedef enum {
     ND_DIV,
     ND_NEG,
     ND_NUM,
+    ND_EQ, // ==
+    ND_NE, // !=
+    ND_LT, // <
+    ND_LE, // <=
 } NodeKind;
 struct Node {
     NodeKind kind;
@@ -139,7 +182,9 @@ Node *NewNodeUnary(NodeKind kind, Node *lhs) {
 }
 
 //===================================================================
-// expr = mul ("+" mul | "-" mul)*
+// expr       = equality
+// equality   = relational ("==" relational | "!=" relational)*
+// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
 // mul = unary ("*" unary | "/" unary)*
 // unary   = ("+" | "-")? primary
 // primary = "(" expr ")" | num
@@ -147,10 +192,59 @@ Node *NewNodeUnary(NodeKind kind, Node *lhs) {
 Node *primary(Token **rest, Token *tok);
 Node *unary(Token **rest, Token *tok);
 Node *mul(Token **rest, Token *tok);
+Node *add(Token **rest, Token *tok);
+Node *relational(Token **rest, Token *tok);
+Node *equality(Token **rest, Token *tok);
 Node *expr(Token **rest, Token *tok);
 //===================================================================
 
 Node *expr(Token **rest, Token *tok) {
+    return equality(rest, tok);
+}
+
+Node *equality(Token **rest, Token *tok) {
+    Node *node = relational(&tok, tok);
+
+    for (;;) {
+        if (IsTokenEqual(tok, "==")) {
+            node = NewNodeBinary(ND_EQ, node, add(&tok, tok->next));
+            continue;
+        }
+        if (IsTokenEqual(tok, "!=")) {
+            node = NewNodeBinary(ND_NE, node, add(&tok, tok->next));
+            continue;
+        }
+        *rest = tok;
+        return node;
+    }
+}
+
+Node *relational(Token **rest, Token *tok) {
+    Node *node  = add(&tok, tok);
+
+    for (;;) {
+        if (IsTokenEqual(tok, "<=")) {
+            node = NewNodeBinary(ND_LE, node, add(&tok, tok->next));
+            continue;
+        }
+        if (IsTokenEqual(tok, "<")) {
+            node = NewNodeBinary(ND_LT, node, add(&tok, tok->next));
+            continue;
+        }
+        if (IsTokenEqual(tok, ">=")) {
+            node = NewNodeBinary(ND_LE,  add(&tok, tok->next), node);
+            continue;
+        }
+        if (IsTokenEqual(tok, ">")) {
+            node = NewNodeBinary(ND_LT, add(&tok, tok->next), node);
+            continue;
+        }
+        *rest = tok;
+        return node;
+    }
+}
+
+Node *add(Token **rest, Token *tok) {
     Node *node = mul(&tok, tok);
 
     for (;;) {
@@ -166,6 +260,7 @@ Node *expr(Token **rest, Token *tok) {
         return node;
     }
 }
+
 Node *mul(Token **rest, Token *tok) {
     Node *node = unary(&tok, tok);
 
@@ -250,6 +345,22 @@ static void gen_expr(Node *node) {
         println("\tcqo");
         println("\tidiv %%rdi");
         return;
+    case ND_EQ:
+    case ND_NE:
+    case ND_LE:
+    case ND_LT:
+        println("\tcmp %%rdi, %%rax");
+        if (node->kind == ND_EQ) {
+            println("\tsete %%al");
+        } else if (node->kind == ND_NE) {
+            println("\tsetne %%al");
+        } else if (node->kind == ND_LT) {
+            println("\tsetl %%al");
+        } else if (node->kind == ND_LE) {
+            println("\tsetle %%al");
+        }
+        println("\tmovzb %%al, %%rax");
+        return;
     }
 
     Error("invalid expression");
@@ -260,12 +371,13 @@ int main(int argc, char **argv) {
         Error("引数の個数が正しくありません");
         return 1;
     }
+    UserInput = argv[1];
+
     Token *token = Tokenize(argv[1]);
     Node *node = expr(&token, token);
 
     if (token->kind != TK_EOF)
         Error("extra token");
-
 
     println(".globl main");
     println("main:");
