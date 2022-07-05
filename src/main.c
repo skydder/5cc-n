@@ -12,16 +12,9 @@ int main(int argc, char **argv) {
     UserInput = argv[1];
 
     Token *token = Tokenize(argv[1]);
-    Node *node = expr(&token, token);
+    Node *node = ParseToken(token);
 
-    if (token->kind != TK_EOF)
-        Error("extra token");
-
-    println(".globl main");
-    println("main:");
-    gen_expr(node);
-    println("\tret");
-    //assert(depth == 0);
+    codegen(node);
 
     return 0;
 }

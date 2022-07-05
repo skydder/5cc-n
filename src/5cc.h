@@ -29,19 +29,21 @@ typedef enum {
     ND_NE, // !=
     ND_LT, // <
     ND_LE, // <=
+    ND_EXPR_STMT,
 } NodeKind;
 
 typedef struct Node Node;
 struct Node {
     NodeKind kind;
+    Node *next;
     Node *lhs;
     Node *rhs;
     int val;
 };
 
 Token *Tokenize(char *p);
-Node *expr(Token **rest, Token *tok);
-void gen_expr(Node *node);
+Node *ParseToken(Token *tok);
+void codegen(Node *node);
 
 void Error(char *fmt, ...);
 void println(char *fmt, ...);

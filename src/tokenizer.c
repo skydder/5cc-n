@@ -5,22 +5,22 @@
 
 #include "5cc.h"
 
-bool is_alnum(char c) {
+static bool is_alnum(char c) {
     return ('a' <= c && c <= 'z') ||
            ('A' <= c && c <= 'Z') ||
            ('0' <= c && c <= '9') ||
            (c == '_');
 }
 
-bool IsStrSame(char *A, char *B) {
+static bool IsStrSame(char *A, char *B) {
     return (strncmp(A, B, strlen(B)) == 0);
 }
 
-bool IsStrReserved(char *A, char *reserved) {
+static bool IsStrReserved(char *A, char *reserved) {
     return IsStrSame(A, reserved) && !is_alnum(A[strlen(reserved)]);
 }
 
-Token *NewToken(TokenKind TK, char *start, char *end) {
+static Token *NewToken(TokenKind TK, char *start, char *end) {
     Token *new = calloc(sizeof(Token), 1);
     new->kind = TK;
     new->str = start;
@@ -28,7 +28,7 @@ Token *NewToken(TokenKind TK, char *start, char *end) {
     return new;
 }
 
-Token *NewTokenReserved(char **start) {
+static Token *NewTokenReserved(char **start) {
     Token *new = NULL;
     struct {
         char *word;
@@ -37,6 +37,7 @@ Token *NewTokenReserved(char **start) {
         {"<=", 2}, {">=", 2}, {"==", 2}, {"!=", 2},
         {"-", 1}, {"+", 1}, {"/", 1}, {"*", 1},
         {"<", 1}, {">", 1}, {"(", 1}, {")", 1},
+        {";", 1},
         {NULL, 0},
     };
     for (int i = 0; symbol[i].word; i++) {

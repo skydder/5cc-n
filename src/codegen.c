@@ -1,3 +1,5 @@
+#include <assert.h>
+
 #include "5cc.h"
 
 static int depth;
@@ -12,7 +14,7 @@ static void pop(char *arg) {
   depth--;
 }
 
-void gen_expr(Node *node) {
+static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM:
         println("\tmov $%d, %%rax", node->val);
@@ -61,4 +63,20 @@ void gen_expr(Node *node) {
     }
 
     Error("invalid expression");
+}
+
+static void gen_stmt(Node *node) {
+    if (node->kind == ND_EXPR_STMT) {
+        gen_expr(node->lhs);
+        return;
+    }
+    Error("invalid expression");
+}
+
+void codegen(Node *node) {
+    println(".globl main");
+    println("main:");
+    gen_stmt(node);
+    println("\tret");
+    assert(depth == 0);
 }

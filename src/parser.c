@@ -4,17 +4,17 @@
 
 #include "5cc.h"
 
-bool IsTokenEqual(Token *tok, char *op) {
+static bool IsTokenEqual(Token *tok, char *op) {
   return tok->kind == TK_RESERVED && memcmp(tok->str, op, tok->len) == 0 && op[tok->len] == '\0';
 }
 
-Token *SkipToken(Token *tok, char *s) {
+static Token *SkipToken(Token *tok, char *s) {
   if (!IsTokenEqual(tok, s))
     Error("expected '%s'", s);
   return tok->next;
 }
 
-int ExpectTokenNum(Token **tok) {
+static int ExpectTokenNum(Token **tok) {
     if ((*tok)->kind != TK_NUM)
         Error("数ではありません");
     int val = (*tok)->val;
@@ -22,29 +22,29 @@ int ExpectTokenNum(Token **tok) {
     return val;
 }
 
-bool IsTokenAtEof(Token *tok) {
+static bool IsTokenAtEof(Token *tok) {
   return tok->kind == TK_EOF;
 }
 
-Node *NewNodeKind(NodeKind kind) {
+static Node *NewNodeKind(NodeKind kind) {
     Node *new = calloc(sizeof(Node), 1);
     new->kind = kind;
     return new;
 }
 
-Node *NewNodeBinary(NodeKind kind, Node *lhs, Node *rhs) {
+static Node *NewNodeBinary(NodeKind kind, Node *lhs, Node *rhs) {
     Node *new = NewNodeKind(kind);
     new->lhs = lhs;
     new->rhs = rhs;
     return new;
 }
 
-Node *NewNodeNum(int val) {
+static Node *NewNodeNum(int val) {
     Node *new = NewNodeKind(ND_NUM);
     new->val = val;
     return new;
 }
-Node *NewNodeUnary(NodeKind kind, Node *lhs) {
+static Node *NewNodeUnary(NodeKind kind, Node *lhs) {
     Node *new = NewNodeKind(kind);
     new->lhs = lhs;
     return new;
@@ -58,20 +58,31 @@ Node *NewNodeUnary(NodeKind kind, Node *lhs) {
 // unary   = ("+" | "-")? primary
 // primary = "(" expr ")" | num
 //===================================================================
-Node *primary(Token **rest, Token *tok);
-Node *unary(Token **rest, Token *tok);
-Node *mul(Token **rest, Token *tok);
-Node *add(Token **rest, Token *tok);
-Node *relational(Token **rest, Token *tok);
-Node *equality(Token **rest, Token *tok);
-extern Node *expr(Token **rest, Token *tok);
+static Node *primary(Token **rest, Token *tok);
+static Node *unary(Token **rest, Token *tok);
+static Node *mul(Token **rest, Token *tok);
+static Node *add(Token **rest, Token *tok);
+static Node *relational(Token **rest, Token *tok);
+static Node *equality(Token **rest, Token *tok);
+static Node *expr(Token **rest, Token *tok);
+static Node *expr_stmt(Token **rest, Token *tok);
 //===================================================================
+static Node *stmt(Token **rest, Token *tok) {
+    return expr_stmt(rest, tok);
+}
 
-Node *expr(Token **rest, Token *tok) {
+
+static Node *expr_stmt(Token **rest, Token *tok) {
+    Node *node = NewNodeUnary(ND_EXPR_STMT, expr(&tok, tok));
+   *rest = SkipToken(tok, ";");
+    return node;
+}
+
+static Node *expr(Token **rest, Token *tok) {
     return equality(rest, tok);
 }
 
-Node *equality(Token **rest, Token *tok) {
+static Node *equality(Token **rest, Token *tok) {
     Node *node = relational(&tok, tok);
 
     for (;;) {
@@ -88,7 +99,7 @@ Node *equality(Token **rest, Token *tok) {
     }
 }
 
-Node *relational(Token **rest, Token *tok) {
+static Node *relational(Token **rest, Token *tok) {
     Node *node  = add(&tok, tok);
 
     for (;;) {
@@ -113,7 +124,7 @@ Node *relational(Token **rest, Token *tok) {
     }
 }
 
-Node *add(Token **rest, Token *tok) {
+static Node *add(Token **rest, Token *tok) {
     Node *node = mul(&tok, tok);
 
     for (;;) {
@@ -130,7 +141,7 @@ Node *add(Token **rest, Token *tok) {
     }
 }
 
-Node *mul(Token **rest, Token *tok) {
+static Node *mul(Token **rest, Token *tok) {
     Node *node = unary(&tok, tok);
 
     for (;;) {
@@ -147,7 +158,7 @@ Node *mul(Token **rest, Token *tok) {
     }
 }
 
-Node *unary(Token **rest, Token *tok) {
+static Node *unary(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "+")) {
         return unary(rest, tok->next);
     }
@@ -157,7 +168,7 @@ Node *unary(Token **rest, Token *tok) {
     return primary(rest, tok);
 }
 
-Node *primary(Token **rest, Token *tok) {
+static Node *primary(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "(")) {
         Node *node = expr(&tok, tok->next);
         *rest = SkipToken(tok, ")");
@@ -169,4 +180,15 @@ Node *primary(Token **rest, Token *tok) {
         return node;
     }
     Error("Something is wrong");
+}
+
+Node *ParseToken(Token *tok) {
+    Node head;
+    head.next = NULL;
+    Node *cur = &head;
+
+    while (!IsTokenAtEof(tok)) {
+        cur = cur->next = stmt(&tok, tok); 
+    }
+    return head.next;
 }
