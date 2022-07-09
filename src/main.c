@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
     Token *token = Tokenize(argv[1]);
     Node *node = ParseToken(token);
 
-    codegen(node);
+    GenCode(node);
 
     return 0;
 }

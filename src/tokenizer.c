@@ -5,6 +5,12 @@
 
 #include "5cc.h"
 
+static bool is_al(char c) {
+    return ('a' <= c && c <= 'z') ||
+           ('A' <= c && c <= 'Z') ||
+           (c == '_');
+}
+
 static bool is_alnum(char c) {
     return ('a' <= c && c <= 'z') ||
            ('A' <= c && c <= 'Z') ||
@@ -30,14 +36,14 @@ static Token *NewToken(TokenKind TK, char *start, char *end) {
 
 static Token *NewTokenReserved(char **start) {
     Token *new = NULL;
-    struct {
+    static struct {
         char *word;
         int len;
     } symbol[] = {
         {"<=", 2}, {">=", 2}, {"==", 2}, {"!=", 2},
         {"-", 1}, {"+", 1}, {"/", 1}, {"*", 1},
         {"<", 1}, {">", 1}, {"(", 1}, {")", 1},
-        {";", 1},
+        {";", 1}, {"=", 1},
         {NULL, 0},
     };
     for (int i = 0; symbol[i].word; i++) {
@@ -60,13 +66,7 @@ Token *Tokenize(char *p) {
             p++;
             continue;
         }
-
-        Token *tok = NewTokenReserved(&p);
-        if (tok) {
-            cur = cur->next = tok;
-            continue;
-        }
-
+        
         if (isdigit(*p)) {
             cur = cur->next = NewToken(TK_NUM, p, p);
             char *q = p;
@@ -74,6 +74,21 @@ Token *Tokenize(char *p) {
             cur->len = p - q;
             continue;
         }
+
+        if ('a' <= *p && *p <= 'z') {
+            cur = cur->next = NewToken(TK_INDENT, p, p);
+            p++;
+            cur->len = 1;
+            continue;
+        }
+
+        Token *tok = NewTokenReserved(&p);
+        if (tok) {
+            cur = cur->next = tok;
+            continue;
+        }
+
+        
         Error("Can't tokenize!");
     }
 

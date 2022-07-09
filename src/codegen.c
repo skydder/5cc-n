@@ -14,6 +14,15 @@ static void pop(char *arg) {
   depth--;
 }
 
+static void gen_addr(Node *node) {
+    if (node->kind == ND_VAR) {
+        int offset = (node->name - 'a' + 1) * 8;
+        println("\tlea %d(%%rbp), %%rax", -offset);
+        return;
+    }
+    Error("not an lvalue");
+}
+
 static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM:
@@ -22,6 +31,17 @@ static void gen_expr(Node *node) {
     case ND_NEG:
         gen_expr(node->lhs);
         println("\tneg %%rax");
+        return;
+    case ND_VAR:
+        gen_addr(node);
+        println("\tmov (%%rax), %%rax");
+        return;
+    case ND_ASSIGN:
+        gen_addr(node->lhs);
+        push();
+        gen_expr(node->rhs);
+        pop("%rdi");
+        println("\tmov %%rax, (%%rdi)");
         return;
     }
 
@@ -73,10 +93,19 @@ static void gen_stmt(Node *node) {
     Error("invalid expression");
 }
 
-void codegen(Node *node) {
+void GenCode(Node *node) {
     println(".globl main");
     println("main:");
-    gen_stmt(node);
+
+    println("\tpush %%rbp");
+    println("\tmov %%rsp, %%rbp");
+    println("\tsub $208, %%rsp");
+    for (Node *n = node; n; n = n->next) {
+        gen_stmt(n);
+        assert(depth == 0);
+    }
+    println("\tmov %%rbp, %%rsp");
+    println("\tpop %%rbp");
     println("\tret");
-    assert(depth == 0);
+    
 }

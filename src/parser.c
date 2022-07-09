@@ -14,14 +14,6 @@ static Token *SkipToken(Token *tok, char *s) {
   return tok->next;
 }
 
-static int ExpectTokenNum(Token **tok) {
-    if ((*tok)->kind != TK_NUM)
-        Error("数ではありません");
-    int val = (*tok)->val;
-    *tok = (*tok)->next;
-    return val;
-}
-
 static bool IsTokenAtEof(Token *tok) {
   return tok->kind == TK_EOF;
 }
@@ -49,9 +41,16 @@ static Node *NewNodeUnary(NodeKind kind, Node *lhs) {
     new->lhs = lhs;
     return new;
 }
-
+static Node *NewNodeVar(char name) {
+    Node *new = NewNodeKind(ND_VAR);
+    new->name = name;
+    return new;
+}
 //===================================================================
-// expr       = equality
+// stmt       = expr_stmt
+// expr_stmt  = expr ";"
+// expr       = assign 
+// assign     = equality ("=" assign)?
 // equality   = relational ("==" relational | "!=" relational)*
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
 // mul = unary ("*" unary | "/" unary)*
@@ -64,8 +63,10 @@ static Node *mul(Token **rest, Token *tok);
 static Node *add(Token **rest, Token *tok);
 static Node *relational(Token **rest, Token *tok);
 static Node *equality(Token **rest, Token *tok);
+static Node *assign(Token **rest, Token *tok);
 static Node *expr(Token **rest, Token *tok);
 static Node *expr_stmt(Token **rest, Token *tok);
+static Node *stmt(Token **rest, Token *tok);
 //===================================================================
 static Node *stmt(Token **rest, Token *tok) {
     return expr_stmt(rest, tok);
@@ -79,7 +80,18 @@ static Node *expr_stmt(Token **rest, Token *tok) {
 }
 
 static Node *expr(Token **rest, Token *tok) {
-    return equality(rest, tok);
+    return assign(rest, tok);
+}
+
+static Node *assign(Token **rest, Token *tok) {
+    Node *node = equality(&tok, tok);
+
+    
+    if (IsTokenEqual(tok, "=")) {
+        node = NewNodeBinary(ND_ASSIGN, node, assign(&tok, tok->next));
+    }
+    *rest = tok;
+    return node;
 }
 
 static Node *equality(Token **rest, Token *tok) {
@@ -174,6 +186,13 @@ static Node *primary(Token **rest, Token *tok) {
         *rest = SkipToken(tok, ")");
         return node;
     }
+
+    if (tok->kind == TK_INDENT) {
+        Node *node = NewNodeVar(*(tok->str));
+        *rest = tok->next;
+        return node;
+    }
+
     if (tok->kind == TK_NUM) {
         Node *node = NewNodeNum(tok->val);
         *rest = tok->next;
@@ -183,8 +202,7 @@ static Node *primary(Token **rest, Token *tok) {
 }
 
 Node *ParseToken(Token *tok) {
-    Node head;
-    head.next = NULL;
+    Node head  = {};
     Node *cur = &head;
 
     while (!IsTokenAtEof(tok)) {
