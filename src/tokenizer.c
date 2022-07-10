@@ -12,10 +12,7 @@ static bool is_al(char c) {
 }
 
 static bool is_alnum(char c) {
-    return ('a' <= c && c <= 'z') ||
-           ('A' <= c && c <= 'Z') ||
-           ('0' <= c && c <= '9') ||
-           (c == '_');
+    return is_al(c) || ('0' <= c && c <= '9');
 }
 
 static bool IsStrSame(char *A, char *B) {
@@ -27,7 +24,7 @@ static bool IsStrReserved(char *A, char *reserved) {
 }
 
 static Token *NewToken(TokenKind TK, char *start, char *end) {
-    Token *new = calloc(sizeof(Token), 1);
+    Token *new = calloc(1, sizeof(Token));
     new->kind = TK;
     new->str = start;
     new->len = end - start;
@@ -75,10 +72,10 @@ Token *Tokenize(char *p) {
             continue;
         }
 
-        if ('a' <= *p && *p <= 'z') {
-            cur = cur->next = NewToken(TK_INDENT, p, p);
-            p++;
-            cur->len = 1;
+        if (is_al(*p)) {
+            char *start = p;
+            for (; is_alnum(*p);) p++;
+            cur = cur->next = NewToken(TK_INDENT, start, p);
             continue;
         }
 

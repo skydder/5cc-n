@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
 
 typedef enum {
@@ -34,20 +35,35 @@ typedef enum {
     ND_VAR,
     ND_EXPR_STMT,
 } NodeKind;
-
 typedef struct Node Node;
+typedef struct Obj Obj;
+struct Obj {
+    Obj *next;
+    char *name;
+    int offset;
+
+    bool is_lvar;
+    bool is_func;
+
+    Obj *locals;
+    Node *prog;
+    int stack_size;
+};
+
 struct Node {
     NodeKind kind;
     Node *next;
     Node *lhs;
     Node *rhs;
     int val;
-    char name;
+    Obj *var;
 };
 
+
+
 Token *Tokenize(char *p);
-Node *ParseToken(Token *tok);
-void GenCode(Node *node);
+Obj *ParseToken(Token *tok);
+void GenCode(Obj *func);
 
 void Error(char *fmt, ...);
 void println(char *fmt, ...);

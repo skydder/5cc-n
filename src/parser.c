@@ -18,8 +18,30 @@ static bool IsTokenAtEof(Token *tok) {
   return tok->kind == TK_EOF;
 }
 
+Obj *locals;
+
+static Obj *NewObj() {
+    Obj *new = calloc(1, sizeof(Obj));
+    return new;
+}
+
+static Obj *NewObjLVar(char *name) {
+    Obj *new = NewObj();
+    new->name = name;
+    new->next = locals;
+    locals = new;
+    return new;
+}
+
+static Obj *FindObjLVar(Token *tok) {
+    for (Obj *var = locals; var; var = var->next)
+        if (strlen(var->name) == tok->len && !strncmp(tok->str, var->name, tok->len))
+            return var;
+    return NULL;
+}
+
 static Node *NewNodeKind(NodeKind kind) {
-    Node *new = calloc(sizeof(Node), 1);
+    Node *new = calloc(1, sizeof(Node));
     new->kind = kind;
     return new;
 }
@@ -41,11 +63,14 @@ static Node *NewNodeUnary(NodeKind kind, Node *lhs) {
     new->lhs = lhs;
     return new;
 }
-static Node *NewNodeVar(char name) {
+static Node *NewNodeVar(Obj *var) {
     Node *new = NewNodeKind(ND_VAR);
-    new->name = name;
+    new->var = var;
     return new;
 }
+
+
+
 //===================================================================
 // stmt       = expr_stmt
 // expr_stmt  = expr ";"
@@ -68,6 +93,8 @@ static Node *expr(Token **rest, Token *tok);
 static Node *expr_stmt(Token **rest, Token *tok);
 static Node *stmt(Token **rest, Token *tok);
 //===================================================================
+
+
 static Node *stmt(Token **rest, Token *tok) {
     return expr_stmt(rest, tok);
 }
@@ -188,9 +215,12 @@ static Node *primary(Token **rest, Token *tok) {
     }
 
     if (tok->kind == TK_INDENT) {
-        Node *node = NewNodeVar(*(tok->str));
+        Obj *var = FindObjLVar(tok);
+        if (!var)
+            var = NewObjLVar(strndup(tok->str, tok->len));
         *rest = tok->next;
-        return node;
+        return NewNodeVar(var);
+        
     }
 
     if (tok->kind == TK_NUM) {
@@ -201,12 +231,15 @@ static Node *primary(Token **rest, Token *tok) {
     Error("Something is wrong");
 }
 
-Node *ParseToken(Token *tok) {
+Obj *ParseToken(Token *tok) {
     Node head  = {};
     Node *cur = &head;
 
     while (!IsTokenAtEof(tok)) {
         cur = cur->next = stmt(&tok, tok); 
     }
-    return head.next;
+    Obj *func = NewObj();
+    func->locals = locals;
+    func->prog = head.next;
+    return func;
 }

@@ -14,10 +14,13 @@ static void pop(char *arg) {
   depth--;
 }
 
+static int align_to(int n, int align) {
+    return (n + align - 1) / align * align;
+}
+
 static void gen_addr(Node *node) {
     if (node->kind == ND_VAR) {
-        int offset = (node->name - 'a' + 1) * 8;
-        println("\tlea %d(%%rbp), %%rax", -offset);
+        println("\tlea %d(%%rbp), %%rax", node->var->offset);
         return;
     }
     Error("not an lvalue");
@@ -93,14 +96,24 @@ static void gen_stmt(Node *node) {
     Error("invalid expression");
 }
 
-void GenCode(Node *node) {
+void Init(Obj *func) {
+    int offset = 0;
+    for (Obj *lv = func->locals; lv; lv = lv->next) {
+        offset += 8;
+        lv->offset = -offset;
+    }
+    func->stack_size = align_to(offset, 16);
+}
+
+void GenCode(Obj *func) {
+    Init(func);
     println(".globl main");
     println("main:");
 
     println("\tpush %%rbp");
     println("\tmov %%rsp, %%rbp");
-    println("\tsub $208, %%rsp");
-    for (Node *n = node; n; n = n->next) {
+    println("\tsub $%d, %%rsp", func->stack_size);
+    for (Node *n = func->prog; n; n = n->next) {
         gen_stmt(n);
         assert(depth == 0);
     }
