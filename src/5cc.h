@@ -35,6 +35,7 @@ typedef enum {
     ND_VAR,
     ND_EXPR_STMT,
     ND_RETURN,
+    ND_BLOCK,
 } NodeKind;
 typedef struct Node Node;
 typedef struct Obj Obj;
@@ -58,6 +59,7 @@ struct Node {
     Node *rhs;
     int val;
     Obj *var;
+    Node *body; // compound_stmt 
 };
 
 

@@ -40,6 +40,7 @@ static Obj *FindObjLVar(Token *tok) {
     return NULL;
 }
 
+
 static Node *NewNodeKind(NodeKind kind) {
     Node *new = calloc(1, sizeof(Node));
     new->kind = kind;
@@ -72,7 +73,8 @@ static Node *NewNodeVar(Obj *var) {
 
 
 //===================================================================
-// stmt       = expr_stmt || "return" expr ;
+// stmt       = expr_stmt || "return" expr ";"
+// compound_stmt = "{" stmt* "}"
 // expr_stmt  = expr ";"
 // expr       = assign 
 // assign     = equality ("=" assign)?
@@ -91,6 +93,7 @@ static Node *equality(Token **rest, Token *tok);
 static Node *assign(Token **rest, Token *tok);
 static Node *expr(Token **rest, Token *tok);
 static Node *expr_stmt(Token **rest, Token *tok);
+static Node *compound_stmt(Token **rest, Token *tok);
 static Node *stmt(Token **rest, Token *tok);
 //===================================================================
 
@@ -101,9 +104,24 @@ static Node *stmt(Token **rest, Token *tok) {
         *rest = SkipToken(tok, ";");
         return node;
     }
+    if (IsTokenEqual(tok, "{")) {
+        return compound_stmt(rest, tok->next);
+    }
     return expr_stmt(rest, tok);
 }
 
+static Node *compound_stmt(Token **rest, Token *tok) {
+    Node head  = {};
+    Node *cur = &head;
+
+    while (!IsTokenEqual(tok, "}")) {
+        cur = cur->next = stmt(&tok, tok); 
+    }
+    Node *node = NewNodeKind(ND_BLOCK);
+    node->body = head.next;
+    *rest = tok->next;
+    return node;
+}
 
 static Node *expr_stmt(Token **rest, Token *tok) {
     Node *node = NewNodeUnary(ND_EXPR_STMT, expr(&tok, tok));

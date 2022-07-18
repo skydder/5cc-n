@@ -97,7 +97,12 @@ static void gen_stmt(Node *node) {
         gen_expr(node->lhs);
         println("\tjmp .L.return");
         return;
+    case ND_BLOCK:
+        for (Node *n = node->body; n; n = n->next)
+            gen_stmt(n);
+        return;
     }
+    
     Error("invalid expression");
 }
 
