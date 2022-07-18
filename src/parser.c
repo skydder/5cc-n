@@ -124,6 +124,10 @@ static Node *compound_stmt(Token **rest, Token *tok) {
 }
 
 static Node *expr_stmt(Token **rest, Token *tok) {
+    if (IsTokenEqual(tok, ";")) {
+        *rest = SkipToken(tok, ";");
+        return NewNodeKind(ND_BLOCK);
+    }
     Node *node = NewNodeUnary(ND_EXPR_STMT, expr(&tok, tok));
    *rest = SkipToken(tok, ";");
     return node;
