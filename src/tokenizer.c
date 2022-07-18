@@ -43,10 +43,25 @@ static Token *NewTokenReserved(char **start) {
         {";", 1}, {"=", 1},
         {NULL, 0},
     };
+
+    static struct {
+        char *word;
+        int len;
+    } keyword[] = {
+        {"return", 6},
+    };
+
     for (int i = 0; symbol[i].word; i++) {
         if (IsStrSame(*start, symbol[i].word)) {
             new = NewToken(TK_RESERVED, *start, *start + symbol[i].len);
             *start = *start + symbol[i].len;
+            return new;
+        }
+    }
+    for (int i = 0; keyword[i].word; i++) {
+        if (IsStrReserved(*start, keyword[i].word)) {
+            new = NewToken(TK_RESERVED, *start, *start + keyword[i].len);
+            *start = *start + keyword[i].len;
             return new;
         }
     }
@@ -72,20 +87,19 @@ Token *Tokenize(char *p) {
             continue;
         }
 
-        if (is_al(*p)) {
-            char *start = p;
-            for (; is_alnum(*p);) p++;
-            cur = cur->next = NewToken(TK_INDENT, start, p);
-            continue;
-        }
-
         Token *tok = NewTokenReserved(&p);
         if (tok) {
             cur = cur->next = tok;
             continue;
         }
 
-        
+        if (is_al(*p)) {
+            char *start = p;
+            for (; is_alnum(*p);) p++;  // len(indent_name)
+            cur = cur->next = NewToken(TK_INDENT, start, p);
+            continue;
+        }
+
         Error("Can't tokenize!");
     }
 

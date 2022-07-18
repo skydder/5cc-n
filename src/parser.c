@@ -72,7 +72,7 @@ static Node *NewNodeVar(Obj *var) {
 
 
 //===================================================================
-// stmt       = expr_stmt
+// stmt       = expr_stmt || "return" expr ;
 // expr_stmt  = expr ";"
 // expr       = assign 
 // assign     = equality ("=" assign)?
@@ -96,6 +96,11 @@ static Node *stmt(Token **rest, Token *tok);
 
 
 static Node *stmt(Token **rest, Token *tok) {
+    if (IsTokenEqual(tok, "return")) {
+        Node *node = NewNodeUnary(ND_RETURN, expr(&tok, tok->next));
+        *rest = SkipToken(tok, ";");
+        return node;
+    }
     return expr_stmt(rest, tok);
 }
 
@@ -240,6 +245,6 @@ Obj *ParseToken(Token *tok) {
     }
     Obj *func = NewObj();
     func->locals = locals;
-    func->prog = head.next;
+    func->body = head.next;
     return func;
 }

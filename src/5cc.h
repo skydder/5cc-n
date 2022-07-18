@@ -34,6 +34,7 @@ typedef enum {
     ND_ASSIGN,
     ND_VAR,
     ND_EXPR_STMT,
+    ND_RETURN,
 } NodeKind;
 typedef struct Node Node;
 typedef struct Obj Obj;
@@ -46,7 +47,7 @@ struct Obj {
     bool is_func;
 
     Obj *locals;
-    Node *prog;
+    Node *body;
     int stack_size;
 };
 

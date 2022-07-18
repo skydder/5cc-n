@@ -89,8 +89,13 @@ static void gen_expr(Node *node) {
 }
 
 static void gen_stmt(Node *node) {
-    if (node->kind == ND_EXPR_STMT) {
+    switch (node->kind) {
+    case ND_EXPR_STMT:
         gen_expr(node->lhs);
+        return;
+    case ND_RETURN:
+        gen_expr(node->lhs);
+        println("\tjmp .L.return");
         return;
     }
     Error("invalid expression");
@@ -113,10 +118,11 @@ void GenCode(Obj *func) {
     println("\tpush %%rbp");
     println("\tmov %%rsp, %%rbp");
     println("\tsub $%d, %%rsp", func->stack_size);
-    for (Node *n = func->prog; n; n = n->next) {
+    for (Node *n = func->body; n; n = n->next) {
         gen_stmt(n);
         assert(depth == 0);
     }
+    println(".L.return:");
     println("\tmov %%rbp, %%rsp");
     println("\tpop %%rbp");
     println("\tret");
