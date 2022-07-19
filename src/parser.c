@@ -73,8 +73,8 @@ static Node *NewNodeVar(Obj *var) {
 
 
 //===================================================================
-// stmt       = expr_stmt || "return" expr ";"
 // compound_stmt = "{" stmt* "}"
+// stmt       = expr_stmt || "return" expr ";" || "if" "(" expr ")" stmt "else"?
 // expr_stmt  = expr ";"
 // expr       = assign 
 // assign     = equality ("=" assign)?
@@ -106,6 +106,16 @@ static Node *stmt(Token **rest, Token *tok) {
     }
     if (IsTokenEqual(tok, "{")) {
         return compound_stmt(rest, tok->next);
+    }
+    if (IsTokenEqual(tok, "if")) {
+        Node *node = NewNodeKind(ND_IF);
+        node->cond = expr(&tok, tok->next->next);  // "if" -> "(" -> expr
+        node->then = stmt(&tok, tok->next);
+        if (IsTokenEqual(tok, "else"))
+            node->_else = stmt(&tok, tok->next);
+        *rest = tok;
+        return node;
+
     }
     return expr_stmt(rest, tok);
 }
@@ -259,14 +269,16 @@ static Node *primary(Token **rest, Token *tok) {
 }
 
 Obj *ParseToken(Token *tok) {
-    Node head  = {};
-    Node *cur = &head;
+    // Node head  = {};
+    // Node *cur = &head;
 
-    while (!IsTokenAtEof(tok)) {
-        cur = cur->next = stmt(&tok, tok); 
-    }
+    // while (!IsTokenAtEof(tok)) {
+    //     cur = cur->next = stmt(&tok, tok); 
+    // }
+    tok = SkipToken(tok, "{");
+    Node *body = compound_stmt(&tok, tok);
     Obj *func = NewObj();
     func->locals = locals;
-    func->body = head.next;
+    func->body = body;  // head.next;
     return func;
 }

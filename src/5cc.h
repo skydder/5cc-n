@@ -36,6 +36,7 @@ typedef enum {
     ND_EXPR_STMT,
     ND_RETURN,
     ND_BLOCK,
+    ND_IF,
 } NodeKind;
 typedef struct Node Node;
 typedef struct Obj Obj;
@@ -57,7 +58,13 @@ struct Node {
     Node *next;
     Node *lhs;
     Node *rhs;
+
+    Node *cond;
+    Node *then;
+    Node *_else;
+
     int val;
+
     Obj *var;
     Node *body; // compound_stmt 
 };

@@ -14,6 +14,11 @@ static void pop(char *arg) {
   depth--;
 }
 
+static int count() {
+    static int i = 1;
+    return i++;
+}
+
 static int align_to(int n, int align) {
     return (n + align - 1) / align * align;
 }
@@ -101,6 +106,19 @@ static void gen_stmt(Node *node) {
         for (Node *n = node->body; n; n = n->next)
             gen_stmt(n);
         return;
+    case ND_IF:{
+        int c = count();
+        gen_expr(node->cond);
+        println("\tcmp $0, %%rax");
+        println("\tje  .L.else.%d", c);
+        gen_stmt(node->then);
+        println("\tjmp .L.end.%d", c);
+        println(".L.else.%d:", c);
+        if (node->_else)
+            gen_stmt(node->_else);
+        println(".L.end.%d:", c);
+        return;
+    }
     }
     
     Error("invalid expression");
