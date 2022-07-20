@@ -82,7 +82,8 @@ static Node *NewNodeVar(Obj *var) {
 
 //===================================================================
 // compound_stmt = "{" stmt* "}"
-// stmt       = expr_stmt || "return" expr ";" || "if" "(" expr ")" stmt "else"?
+// stmt       = expr_stmt || "return" expr ";" || "if" "(" expr ")" stmt ("else" stmt)? || 
+//              "for" "(" expr? ";" expr? ";" expr ")" stmt || "while" "(" expr ")" stmt ||
 // expr_stmt  = expr ";"
 // expr       = assign 
 // assign     = equality ("=" assign)?
@@ -129,7 +130,7 @@ static Node *stmt(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "for")) {
         Node *node = NewNodeKind(ND_FOR);
         tok = SkipToken(tok->next, "(");
-        
+
         if (!ConsumeToken(";", &tok)) {
             node->init = expr(&tok, tok);
             tok = SkipToken(tok, ";");
@@ -142,6 +143,15 @@ static Node *stmt(Token **rest, Token *tok) {
             node->inc = expr(&tok, tok);
             tok = SkipToken(tok, ")");
         }
+        node->then = stmt(&tok, tok);
+        *rest = tok;
+        return node;
+    }
+    if (IsTokenEqual(tok, "while")) {
+        Node *node = NewNodeKind(ND_WHILE);
+        tok = SkipToken(tok->next, "(");
+        node->cond = expr(&tok, tok);
+        tok = SkipToken(tok, ")");
         node->then = stmt(&tok, tok);
         *rest = tok;
         return node;

@@ -137,6 +137,17 @@ static void gen_stmt(Node *node) {
         println(".L.end.%d:", c);
         return;
     }
+    case ND_WHILE:{
+        int c = count();
+        println(".L.begin.%d:", c);
+        gen_expr(node->cond);
+        println("\tcmp $0, %%rax");
+        println("\tje  .L.end.%d", c);
+        gen_stmt(node->then);
+        println("\tjmp .L.begin.%d", c);
+        println(".L.end.%d:", c);
+        return;
+    }
     }
     
     Error("invalid expression");
