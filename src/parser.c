@@ -14,6 +14,14 @@ static Token *SkipToken(Token *tok, char *s) {
   return tok->next;
 }
 
+static bool ConsumeToken(char *op, Token **tok) {
+    if (IsTokenEqual(*tok, op)) {
+        *tok = (*tok)->next;
+        return true;
+    }
+    return false;
+}
+
 static bool IsTokenAtEof(Token *tok) {
   return tok->kind == TK_EOF;
 }
@@ -109,13 +117,34 @@ static Node *stmt(Token **rest, Token *tok) {
     }
     if (IsTokenEqual(tok, "if")) {
         Node *node = NewNodeKind(ND_IF);
-        node->cond = expr(&tok, tok->next->next);  // "if" -> "(" -> expr
-        node->then = stmt(&tok, tok->next);
+        tok = SkipToken(tok->next, "(");
+        node->cond = expr(&tok, tok);
+        tok = SkipToken(tok, ")");
+        node->then = stmt(&tok, tok);
         if (IsTokenEqual(tok, "else"))
             node->_else = stmt(&tok, tok->next);
         *rest = tok;
         return node;
-
+    }
+    if (IsTokenEqual(tok, "for")) {
+        Node *node = NewNodeKind(ND_FOR);
+        tok = SkipToken(tok->next, "(");
+        
+        if (!ConsumeToken(";", &tok)) {
+            node->init = expr(&tok, tok);
+            tok = SkipToken(tok, ";");
+        }
+        if (!ConsumeToken(";", &tok)) {
+            node->cond = expr(&tok, tok);
+            tok = SkipToken(tok, ";");
+        }
+        if (!ConsumeToken(")", &tok)) {
+            node->inc = expr(&tok, tok);
+            tok = SkipToken(tok, ")");
+        }
+        node->then = stmt(&tok, tok);
+        *rest = tok;
+        return node;
     }
     return expr_stmt(rest, tok);
 }
@@ -269,16 +298,11 @@ static Node *primary(Token **rest, Token *tok) {
 }
 
 Obj *ParseToken(Token *tok) {
-    // Node head  = {};
-    // Node *cur = &head;
-
-    // while (!IsTokenAtEof(tok)) {
-    //     cur = cur->next = stmt(&tok, tok); 
-    // }
     tok = SkipToken(tok, "{");
     Node *body = compound_stmt(&tok, tok);
     Obj *func = NewObj();
     func->locals = locals;
-    func->body = body;  // head.next;
+    func->body = body;
+    func->is_func = true;
     return func;
 }

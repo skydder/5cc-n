@@ -119,6 +119,24 @@ static void gen_stmt(Node *node) {
         println(".L.end.%d:", c);
         return;
     }
+    case ND_FOR:{
+        int c = count();
+        if (node->init)
+            gen_expr(node->init);
+        println(".L.begin.%d:", c);
+        if (node->cond) {
+            gen_expr(node->cond);
+            println("\tcmp $0, %%rax");
+            println("\tje  .L.end.%d", c);
+        }
+        
+        gen_stmt(node->then);
+        if (node->inc)
+            gen_expr(node->inc);
+        println("\tjmp .L.begin.%d", c);
+        println(".L.end.%d:", c);
+        return;
+    }
     }
     
     Error("invalid expression");
@@ -134,6 +152,7 @@ void Init(Obj *func) {
 }
 
 void GenCode(Obj *func) {
+    assert(func->is_func);
     Init(func);
     println(".globl main");
     println("main:");
