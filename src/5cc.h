@@ -38,7 +38,8 @@ typedef enum {
     ND_BLOCK,
     ND_IF,
     ND_FOR,
-    ND_WHILE,
+    ND_ADDR,
+    ND_DEREF,
 } NodeKind;
 typedef struct Node Node;
 typedef struct Obj Obj;

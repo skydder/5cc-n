@@ -2,3 +2,6 @@ src/*.o
 src/5cc
 src/tmp*
 .vscode
+src/idea
+.gdb_history
+peda-session-tmp.txt

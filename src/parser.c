@@ -14,13 +14,14 @@ static Token *SkipToken(Token *tok, char *s) {
   return tok->next;
 }
 
-static bool ConsumeToken(char *op, Token **tok) {
+static bool ConsumeToken(Token **tok, char *op) {
     if (IsTokenEqual(*tok, op)) {
         *tok = (*tok)->next;
         return true;
     }
     return false;
 }
+
 
 static bool IsTokenAtEof(Token *tok) {
   return tok->kind == TK_EOF;
@@ -78,8 +79,6 @@ static Node *NewNodeVar(Obj *var) {
     return new;
 }
 
-
-
 //===================================================================
 // compound_stmt = "{" stmt* "}"
 // stmt       = expr_stmt || "return" expr ";" || "if" "(" expr ")" stmt ("else" stmt)? || 
@@ -131,15 +130,15 @@ static Node *stmt(Token **rest, Token *tok) {
         Node *node = NewNodeKind(ND_FOR);
         tok = SkipToken(tok->next, "(");
 
-        if (!ConsumeToken(";", &tok)) {
+        if (!ConsumeToken(&tok, ";")) {
             node->init = expr(&tok, tok);
             tok = SkipToken(tok, ";");
         }
-        if (!ConsumeToken(";", &tok)) {
+        if (!ConsumeToken(&tok, ";")) {
             node->cond = expr(&tok, tok);
             tok = SkipToken(tok, ";");
         }
-        if (!ConsumeToken(")", &tok)) {
+        if (!ConsumeToken(&tok, ")")) {
             node->inc = expr(&tok, tok);
             tok = SkipToken(tok, ")");
         }
@@ -148,7 +147,7 @@ static Node *stmt(Token **rest, Token *tok) {
         return node;
     }
     if (IsTokenEqual(tok, "while")) {
-        Node *node = NewNodeKind(ND_WHILE);
+        Node *node = NewNodeKind(ND_FOR);
         tok = SkipToken(tok->next, "(");
         node->cond = expr(&tok, tok);
         tok = SkipToken(tok, ")");
@@ -279,6 +278,12 @@ static Node *unary(Token **rest, Token *tok) {
     }
     if (IsTokenEqual(tok, "-")) {
         return NewNodeUnary(ND_NEG, unary(rest, tok->next));
+    }
+    if (IsTokenEqual(tok, "*")) {
+        return NewNodeUnary(ND_DEREF, unary(rest, tok->next));
+    }
+    if (IsTokenEqual(tok, "&")) {
+        return NewNodeUnary(ND_ADDR, unary(rest, tok->next));
     }
     return primary(rest, tok);
 }

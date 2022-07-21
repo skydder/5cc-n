@@ -1,8 +1,14 @@
 #include <assert.h>
+#include <stdio.h>
 
 #include "5cc.h"
 
 static int depth;
+
+static void comment(char *msg) {
+    putchar('#');
+    println(msg);
+}
 
 static void push(void) {
   println("\tpush %%rax");
@@ -22,10 +28,14 @@ static int count() {
 static int align_to(int n, int align) {
     return (n + align - 1) / align * align;
 }
-
+static void gen_expr(Node *node);
 static void gen_addr(Node *node) {
-    if (node->kind == ND_VAR) {
+    switch (node->kind ) {
+    case ND_VAR:
         println("\tlea %d(%%rbp), %%rax", node->var->offset);
+        return;
+    case ND_DEREF:
+        gen_expr(node->lhs);
         return;
     }
     Error("not an lvalue");
@@ -34,6 +44,7 @@ static void gen_addr(Node *node) {
 static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM:
+        comment("num");
         println("\tmov $%d, %%rax", node->val);
         return;
     case ND_NEG:
@@ -41,15 +52,26 @@ static void gen_expr(Node *node) {
         println("\tneg %%rax");
         return;
     case ND_VAR:
+        comment("var");
         gen_addr(node);
         println("\tmov (%%rax), %%rax");
         return;
     case ND_ASSIGN:
+        comment("assign");
         gen_addr(node->lhs);
         push();
         gen_expr(node->rhs);
         pop("%rdi");
         println("\tmov %%rax, (%%rdi)");
+        return;
+    case ND_ADDR:
+        comment("addr");
+        gen_addr(node->lhs);
+        return;
+    case ND_DEREF:
+        comment("deref");
+        gen_expr(node->lhs);
+        println("\tmov (%%rax), %%rax");
         return;
     }
 
@@ -133,17 +155,6 @@ static void gen_stmt(Node *node) {
         gen_stmt(node->then);
         if (node->inc)
             gen_expr(node->inc);
-        println("\tjmp .L.begin.%d", c);
-        println(".L.end.%d:", c);
-        return;
-    }
-    case ND_WHILE:{
-        int c = count();
-        println(".L.begin.%d:", c);
-        gen_expr(node->cond);
-        println("\tcmp $0, %%rax");
-        println("\tje  .L.end.%d", c);
-        gen_stmt(node->then);
         println("\tjmp .L.begin.%d", c);
         println(".L.end.%d:", c);
         return;
