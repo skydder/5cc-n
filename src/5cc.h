@@ -11,15 +11,6 @@ typedef enum {
     TK_EOF,
 } TokenKind;
 
-typedef struct Token Token;
-struct Token {
-    TokenKind kind;
-    Token *next;
-    int val;
-    char *str;
-    int len;
-};
-
 typedef enum {
     ND_ADD,
     ND_SUB,
@@ -41,8 +32,25 @@ typedef enum {
     ND_ADDR,
     ND_DEREF,
 } NodeKind;
+
+typedef enum {
+    TY_INT,
+    TY_PTR,
+} TypeKind;
+
+typedef struct Token Token;
 typedef struct Node Node;
 typedef struct Obj Obj;
+typedef struct Type Type;
+
+struct Token {
+    TokenKind kind;
+    Token *next;
+    int val;
+    char *str;
+    int len;
+};
+
 struct Obj {
     Obj *next;
     char *name;
@@ -58,6 +66,7 @@ struct Obj {
 
 struct Node {
     NodeKind kind;
+    Type *type;
     Node *next;
     Node *lhs;
     Node *rhs;
@@ -75,6 +84,10 @@ struct Node {
     Node *body; // compound_stmt 
 };
 
+struct Type {
+    TypeKind kind;
+    Type *base;
+};
 
 
 Token *Tokenize(char *p);
@@ -83,3 +96,7 @@ void GenCode(Obj *func);
 
 void Error(char *fmt, ...);
 void println(char *fmt, ...);
+
+void AddType(Node *node);
+bool IsTypeInteger(Type *ty);
+Type *ty_int;

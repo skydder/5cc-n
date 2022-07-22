@@ -1,4 +1,4 @@
-SRCS=main.c tokenizer.c parser.c codegen.c util.c
+SRCS=main.c tokenizer.c parser.c codegen.c util.c type.c
 OBJS=$(SRCS:.c=.o)
 
 5cc:$(OBJS)

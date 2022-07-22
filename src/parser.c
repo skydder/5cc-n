@@ -163,7 +163,8 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     Node *cur = &head;
 
     while (!IsTokenEqual(tok, "}")) {
-        cur = cur->next = stmt(&tok, tok); 
+        cur = cur->next = stmt(&tok, tok);
+        AddType(cur);
     }
     Node *node = NewNodeKind(ND_BLOCK);
     node->body = head.next;
@@ -188,7 +189,6 @@ static Node *expr(Token **rest, Token *tok) {
 static Node *assign(Token **rest, Token *tok) {
     Node *node = equality(&tok, tok);
 
-    
     if (IsTokenEqual(tok, "=")) {
         node = NewNodeBinary(ND_ASSIGN, node, assign(&tok, tok->next));
     }
@@ -237,17 +237,55 @@ static Node *relational(Token **rest, Token *tok) {
         return node;
     }
 }
+static Node *NewNodeAdd(Node *lhs, Node *rhs) {
+    AddType(lhs);
+    AddType(rhs);
+
+    if (IsTypeInteger(lhs->type) && IsTypeInteger(rhs->type))
+        return NewNodeBinary(ND_ADD, lhs, rhs);
+
+    if (lhs->type->base && rhs->type->base)
+        Error("can't add ptr to ptr.");
+    
+    if (!lhs->type->base && rhs->type->base)
+        return NewNodeAdd(rhs, lhs);
+
+    rhs = NewNodeBinary(ND_MUL, rhs, NewNodeNum(8));
+    return NewNodeBinary(ND_ADD, lhs, rhs);
+}
+
+static Node *NewNodeSub(Node *lhs, Node *rhs) {
+    AddType(lhs);
+    AddType(rhs);
+
+    if (IsTypeInteger(lhs->type) && IsTypeInteger(rhs->type))
+        return NewNodeBinary(ND_SUB, lhs, rhs);
+
+    if (lhs->type->base && rhs->type->base) {
+        lhs = NewNodeBinary(ND_SUB, lhs, rhs);
+        lhs->type = ty_int;
+        return NewNodeBinary(ND_DIV, lhs, NewNodeNum(8)); 
+    }
+    
+    if (lhs->type->base && IsTypeInteger(rhs->type)) {
+        rhs = NewNodeBinary(ND_MUL, rhs, NewNodeNum(8));
+        return NewNodeBinary(ND_SUB, lhs, rhs);
+    }
+    Error("invalid operands");
+}
 
 static Node *add(Token **rest, Token *tok) {
     Node *node = mul(&tok, tok);
 
     for (;;) {
         if (IsTokenEqual(tok, "+")) {
-            node = NewNodeBinary(ND_ADD, node, mul(&tok, tok->next));
+            //node = NewNodeBinary(ND_ADD, node, mul(&tok, tok->next));
+            node = NewNodeAdd(node, mul(&tok, tok->next));
             continue;
         }
         if (IsTokenEqual(tok, "-")) {
-            node = NewNodeBinary(ND_SUB, node, mul(&tok, tok->next));
+            //node = NewNodeBinary(ND_SUB, node, mul(&tok, tok->next));
+            node =NewNodeSub(node, mul(&tok, tok->next));
             continue;
         }
         *rest = tok;
