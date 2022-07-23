@@ -7,7 +7,7 @@
 typedef enum {
     TK_RESERVED,
     TK_NUM,
-    TK_INDENT,
+    TK_IDENT,
     TK_EOF,
 } TokenKind;
 
@@ -53,6 +53,7 @@ struct Token {
 
 struct Obj {
     Obj *next;
+    Type *type;
     char *name;
     int offset;
 
@@ -87,6 +88,7 @@ struct Node {
 struct Type {
     TypeKind kind;
     Type *base;
+    Token *name;
 };
 
 
@@ -99,4 +101,5 @@ void println(char *fmt, ...);
 
 void AddType(Node *node);
 bool IsTypeInteger(Type *ty);
-Type *ty_int;
+Type *NewTypePTR2(Type *base);
+extern Type *ty_int;

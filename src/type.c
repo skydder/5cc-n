@@ -4,12 +4,12 @@
 #include "5cc.h"
 
 
-extern Type *ty_int = &(Type){.kind = TY_INT};
+Type *ty_int = &(Type){.kind = TY_INT};
 
 Type *NewTypePTR2(Type *base) {
     Type *new = calloc(1, sizeof(Type));
-    new->base = base;
     new->kind = TY_PTR;
+    new->base = base;
     return new;
 }
 
@@ -44,7 +44,6 @@ void AddType(Node *node) {
     case ND_NE:
     case ND_LT:
     case ND_LE:
-    case ND_VAR:
     case ND_NUM:
         node->type = ty_int;
         return;
@@ -52,10 +51,9 @@ void AddType(Node *node) {
         node->type = NewTypePTR2(node->lhs->type);
         return;
     case ND_DEREF:
-        if (node->lhs->type->kind == TY_PTR)
-            node->type = node->lhs->type->base;
-        else
-        node->type = ty_int;
+        if (node->lhs->type->kind != TY_PTR)
+            Error("invalid pointer dereference");
+        node->type = node->lhs->type->base;
         return;
     }
 }

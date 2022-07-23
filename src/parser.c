@@ -14,11 +14,12 @@ static Token *SkipToken(Token *tok, char *s) {
   return tok->next;
 }
 
-static bool ConsumeToken(Token **tok, char *op) {
-    if (IsTokenEqual(*tok, op)) {
-        *tok = (*tok)->next;
+static bool ConsumeToken(Token **rest, Token *tok, char *op) {
+    if (IsTokenEqual(tok, op)) {
+        *rest = tok->next;
         return true;
     }
+    *rest = tok;
     return false;
 }
 
@@ -34,10 +35,11 @@ static Obj *NewObj() {
     return new;
 }
 
-static Obj *NewObjLVar(char *name) {
+static Obj *NewObjLVar(char *name, Type *type) {
     Obj *new = NewObj();
     new->name = name;
     new->next = locals;
+    new->type =type;
     locals = new;
     return new;
 }
@@ -76,7 +78,14 @@ static Node *NewNodeUnary(NodeKind kind, Node *lhs) {
 static Node *NewNodeVar(Obj *var) {
     Node *new = NewNodeKind(ND_VAR);
     new->var = var;
+    new->type = var->type;
     return new;
+}
+
+static char *GetStrIdent(Token *tok) {
+    if (tok->kind != TK_IDENT)
+        Error("This is not ident");
+    return strndup(tok->str, tok->len);
 }
 
 //===================================================================
@@ -106,6 +115,52 @@ static Node *stmt(Token **rest, Token *tok);
 //===================================================================
 
 
+static Type *declspec(Token **rest, Token *tok) {
+    *rest = SkipToken(tok, "int");
+    return ty_int;
+}
+
+static Type *declarator(Token **rest, Token *tok, Type *ty) {
+    while (ConsumeToken(&tok, tok, "*"))
+        ty = NewTypePTR2(ty);
+    
+    if (tok->kind != TK_IDENT)
+        Error("expected a variable name");
+
+    ty->name = tok;
+    *rest = tok->next;
+    return ty;
+}
+
+static Node *declaration(Token **rest, Token *tok) {
+    Type *base_type = declspec(&tok, tok);
+    Node head = {};
+    Node *cur = &head;
+    int i = 0;
+
+    while (!IsTokenEqual(tok, ";")) {
+        if (i++ > 0)
+            tok = SkipToken(tok, ",");
+
+        Type *ty = declarator(&tok, tok, base_type);
+        
+        Obj *var = NewObjLVar(GetStrIdent(ty->name), ty);
+
+        if (!IsTokenEqual(tok, "="))
+            continue;
+
+        Node *lhs = NewNodeVar(var);
+        Node *rhs = assign(&tok, tok->next);
+        Node *node = NewNodeBinary(ND_ASSIGN, lhs, rhs);
+        cur = cur->next = NewNodeUnary(ND_EXPR_STMT, node);
+    }
+
+    Node *node = NewNodeKind(ND_BLOCK);
+    node->body = head.next;
+    *rest = tok->next;
+    return node;
+}
+
 static Node *stmt(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "return")) {
         Node *node = NewNodeUnary(ND_RETURN, expr(&tok, tok->next));
@@ -130,15 +185,15 @@ static Node *stmt(Token **rest, Token *tok) {
         Node *node = NewNodeKind(ND_FOR);
         tok = SkipToken(tok->next, "(");
 
-        if (!ConsumeToken(&tok, ";")) {
+        if (!ConsumeToken(&tok, tok, ";")) {
             node->init = expr(&tok, tok);
             tok = SkipToken(tok, ";");
         }
-        if (!ConsumeToken(&tok, ";")) {
+        if (!ConsumeToken(&tok, tok, ";")) {
             node->cond = expr(&tok, tok);
             tok = SkipToken(tok, ";");
         }
-        if (!ConsumeToken(&tok, ")")) {
+        if (!ConsumeToken(&tok, tok, ")")) {
             node->inc = expr(&tok, tok);
             tok = SkipToken(tok, ")");
         }
@@ -163,7 +218,10 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     Node *cur = &head;
 
     while (!IsTokenEqual(tok, "}")) {
-        cur = cur->next = stmt(&tok, tok);
+        if (IsTokenEqual(tok, "int"))
+            cur = cur->next = declaration(&tok, tok);
+        else
+            cur = cur->next = stmt(&tok, tok);
         AddType(cur);
     }
     Node *node = NewNodeKind(ND_BLOCK);
@@ -237,6 +295,7 @@ static Node *relational(Token **rest, Token *tok) {
         return node;
     }
 }
+
 static Node *NewNodeAdd(Node *lhs, Node *rhs) {
     AddType(lhs);
     AddType(rhs);
@@ -279,13 +338,11 @@ static Node *add(Token **rest, Token *tok) {
 
     for (;;) {
         if (IsTokenEqual(tok, "+")) {
-            //node = NewNodeBinary(ND_ADD, node, mul(&tok, tok->next));
             node = NewNodeAdd(node, mul(&tok, tok->next));
             continue;
         }
         if (IsTokenEqual(tok, "-")) {
-            //node = NewNodeBinary(ND_SUB, node, mul(&tok, tok->next));
-            node =NewNodeSub(node, mul(&tok, tok->next));
+            node = NewNodeSub(node, mul(&tok, tok->next));
             continue;
         }
         *rest = tok;
@@ -333,10 +390,12 @@ static Node *primary(Token **rest, Token *tok) {
         return node;
     }
 
-    if (tok->kind == TK_INDENT) {
+    if (tok->kind == TK_IDENT) {
         Obj *var = FindObjLVar(tok);
         if (!var)
-            var = NewObjLVar(strndup(tok->str, tok->len));
+            Error("unexpected expression");
+            // var = NewObjLVar(strndup(tok->str, tok->len));
+
         *rest = tok->next;
         return NewNodeVar(var);
         

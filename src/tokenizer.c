@@ -41,7 +41,7 @@ static Token *NewTokenReserved(char **start) {
         {"-", 1}, {"+", 1}, {"/", 1}, {"*", 1},
         {"<", 1}, {">", 1}, {"(", 1}, {")", 1},
         {";", 1}, {"=", 1}, {"{", 1}, {"}", 1},
-        {"&", 1},
+        {"&", 1}, {",", 1},
         {NULL, 0},
     };
 
@@ -50,7 +50,7 @@ static Token *NewTokenReserved(char **start) {
         int len;
     } keyword[] = {
         {"return", 6}, {"if", 2}, {"else", 4}, {"for", 3}, 
-        {"while", 5}, {NULL, 0},
+        {"while", 5}, {"int", 3}, {NULL, 0},
     };
 
     for (int i = 0; symbol[i].word; i++) {
@@ -97,8 +97,8 @@ Token *Tokenize(char *p) {
 
         if (is_al(*p)) {
             char *start = p;
-            for (; is_alnum(*p);) p++;  // len(indent_name)
-            cur = cur->next = NewToken(TK_INDENT, start, p);
+            for (; is_alnum(*p);) p++;  // len(ident_name)
+            cur = cur->next = NewToken(TK_IDENT, start, p);
             continue;
         }
 
