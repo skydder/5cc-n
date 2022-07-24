@@ -4,6 +4,7 @@
 #include "5cc.h"
 
 static int depth;
+static char* argreg[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"}; 
 
 static void comment(char *msg) {
     putchar('#');
@@ -73,6 +74,21 @@ static void gen_expr(Node *node) {
         gen_expr(node->lhs);
         println("\tmov (%%rax), %%rax");
         return;
+    case ND_FNCALL:{
+        int nargs = 0;
+        for (Node *arg = node->args; arg; arg = arg->next) {
+            gen_expr(arg);
+            push();
+            nargs++;
+        }
+        
+        for (int i = nargs - 1; i >= 0; i--)
+            pop(argreg[i]);
+
+        println("\tmov $0, %%rax");
+        println("\tcall %s", node->fn_name);
+        return;
+    }
     }
 
     gen_expr(node->rhs);

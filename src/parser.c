@@ -383,6 +383,25 @@ static Node *unary(Token **rest, Token *tok) {
     return primary(rest, tok);
 }
 
+static Node *fncall(Token **rest, Token *tok) {
+    Node *node = NewNodeKind(ND_FNCALL);
+    node->fn_name = strndup(tok->str, tok->len);
+    tok = tok->next->next;
+
+    Node head = {};
+    Node *cur = &head;
+
+    while (!IsTokenEqual(tok, ")")) {
+        cur = cur->next = expr(&tok, tok);
+        if (!IsTokenEqual(tok, ")"))
+            tok = SkipToken(tok, ",");
+    }
+
+    *rest = SkipToken(tok, ")");
+    node->args = head.next;
+    return node;
+}
+
 static Node *primary(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "(")) {
         Node *node = expr(&tok, tok->next);
@@ -391,14 +410,15 @@ static Node *primary(Token **rest, Token *tok) {
     }
 
     if (tok->kind == TK_IDENT) {
-        Obj *var = FindObjLVar(tok);
-        if (!var)
-            Error("unexpected expression");
-            // var = NewObjLVar(strndup(tok->str, tok->len));
-
-        *rest = tok->next;
-        return NewNodeVar(var);
-        
+        if (IsTokenEqual(tok->next, "(")) {
+            return fncall(rest, tok);
+        } else {
+            Obj *var = FindObjLVar(tok);
+            if (!var)
+                Error("unexpected expression");
+            *rest = tok->next;
+            return NewNodeVar(var);
+        }
     }
 
     if (tok->kind == TK_NUM) {

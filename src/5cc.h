@@ -31,6 +31,7 @@ typedef enum {
     ND_FOR,
     ND_ADDR,
     ND_DEREF,
+    ND_FNCALL,
 } NodeKind;
 
 typedef enum {
@@ -82,7 +83,9 @@ struct Node {
     int val;
 
     Obj *var;
-    Node *body; // compound_stmt 
+    Node *body; // compound_stmt
+    char *fn_name;
+    Node *args;
 };
 
 struct Type {

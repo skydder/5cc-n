@@ -45,6 +45,7 @@ void AddType(Node *node) {
     case ND_LT:
     case ND_LE:
     case ND_NUM:
+    case ND_FNCALL:
         node->type = ty_int;
         return;
     case ND_ADDR:
