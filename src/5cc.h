@@ -37,6 +37,7 @@ typedef enum {
 typedef enum {
     TY_INT,
     TY_PTR,
+    TY_FN,
 } TypeKind;
 
 typedef struct Token Token;
@@ -54,14 +55,17 @@ struct Token {
 
 struct Obj {
     Obj *next;
-    Type *type;
     char *name;
+
+    // for Lvar
     int offset;
-
+    Type *type;
     bool is_lvar;
-    bool is_func;
 
+    // for Fn
+    bool is_func;
     Obj *locals;
+    Obj *params;
     Node *body;
     int stack_size;
 };
@@ -83,7 +87,7 @@ struct Node {
     int val;
 
     Obj *var;
-    Node *body; // compound_stmt
+    Node *body;
     char *fn_name;
     Node *args;
 };
@@ -92,6 +96,10 @@ struct Type {
     TypeKind kind;
     Type *base;
     Token *name;
+
+    Type *return_type;  // for func
+    Type *params;
+    Type *next;
 };
 
 
@@ -105,4 +113,6 @@ void println(char *fmt, ...);
 void AddType(Node *node);
 bool IsTypeInteger(Type *ty);
 Type *NewTypePTR2(Type *base);
+Type *NewTypeFn(Type *return_type);
+Type *CopyType(Type *ty);
 extern Type *ty_int;

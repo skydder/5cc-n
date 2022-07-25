@@ -13,8 +13,21 @@ Type *NewTypePTR2(Type *base) {
     return new;
 }
 
+Type *NewTypeFn(Type *return_type) {
+    Type *new = calloc(1, sizeof(Type));
+    new->kind = TY_FN;
+    new->return_type = return_type;
+    return new;
+}
+
 bool IsTypeInteger(Type *ty) {
     return ty->kind == TY_INT;
+}
+
+Type *CopyType(Type *ty) {
+    Type *ret = calloc(1, sizeof(Type));
+    *ret = *ty;
+    return ret;
 }
 
 void AddType(Node *node) {
@@ -29,6 +42,9 @@ void AddType(Node *node) {
     AddType(node->then);
 
     for (Node *n = node->body; n; n = n->next)
+        AddType(n);
+
+    for (Node *n = node->args; n; n = n->next)
         AddType(n);
 
     switch (node->kind) {

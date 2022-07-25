@@ -5,6 +5,7 @@
 
 static int depth;
 static char* argreg[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"}; 
+static Obj *current_fn;
 
 static void comment(char *msg) {
     putchar('#');
@@ -138,7 +139,7 @@ static void gen_stmt(Node *node) {
         return;
     case ND_RETURN:
         gen_expr(node->lhs);
-        println("\tjmp .L.return");
+        println("\tjmp .L.return.%s", current_fn->name);
         return;
     case ND_BLOCK:
         for (Node *n = node->body; n; n = n->next)
@@ -191,20 +192,27 @@ void Init(Obj *func) {
 
 void GenCode(Obj *func) {
     assert(func->is_func);
-    Init(func);
-    println(".globl main");
-    println("main:");
+    for (Obj *fn = func; fn; fn = fn->next) {
+        Init(fn);
+        current_fn = fn;
+        println(".globl %s", fn->name);
+        println("%s:", fn->name);
 
-    println("\tpush %%rbp");
-    println("\tmov %%rsp, %%rbp");
-    println("\tsub $%d, %%rsp", func->stack_size);
-    for (Node *n = func->body; n; n = n->next) {
-        gen_stmt(n);
-        assert(depth == 0);
+        println("\tpush %%rbp");
+        println("\tmov %%rsp, %%rbp");
+        println("\tsub $%d, %%rsp", fn->stack_size);
+
+        int i = 0;
+        for (Obj *var = fn->params; var; var = var->next)
+            println("\tmov %s, %d(%%rbp)", argreg[i++], var->offset);
+
+        for (Node *n = fn->body; n; n = n->next) {
+            gen_stmt(n);
+            assert(depth == 0);
+        }
+        println(".L.return.%s:", fn->name);
+        println("\tmov %%rbp, %%rsp");
+        println("\tpop %%rbp");
+        println("\tret");
     }
-    println(".L.return:");
-    println("\tmov %%rbp, %%rsp");
-    println("\tpop %%rbp");
-    println("\tret");
-    
 }

@@ -39,7 +39,7 @@ static Obj *NewObjLVar(char *name, Type *type) {
     Obj *new = NewObj();
     new->name = name;
     new->next = locals;
-    new->type =type;
+    new->type = type;
     locals = new;
     return new;
 }
@@ -113,11 +113,35 @@ static Node *expr_stmt(Token **rest, Token *tok);
 static Node *compound_stmt(Token **rest, Token *tok);
 static Node *stmt(Token **rest, Token *tok);
 //===================================================================
-
+static Type *declarator(Token **rest, Token *tok, Type *ty);
 
 static Type *declspec(Token **rest, Token *tok) {
     *rest = SkipToken(tok, "int");
     return ty_int;
+}
+
+static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
+    if (IsTokenEqual(tok, "(")) {
+        tok = tok->next;
+
+        Type head = {};
+        Type *cur = &head;
+
+        while (!IsTokenEqual(tok, ")")) {
+            if (cur != &head)
+                tok = SkipToken(tok, ",");
+            Type *basety = declspec(&tok, tok);
+            Type *ty = declarator(&tok, tok, basety);
+            cur = cur->next = CopyType(ty);
+        }
+
+        ty = NewTypeFn(ty);
+        ty->params = head.next;
+        *rest = tok->next;
+        return ty;
+    }
+    *rest = tok;
+    return ty;
 }
 
 static Type *declarator(Token **rest, Token *tok, Type *ty) {
@@ -127,8 +151,8 @@ static Type *declarator(Token **rest, Token *tok, Type *ty) {
     if (tok->kind != TK_IDENT)
         Error("expected a variable name");
 
+    ty = type_suffix(rest, tok->next, ty);
     ty->name = tok;
-    *rest = tok->next;
     return ty;
 }
 
@@ -159,6 +183,13 @@ static Node *declaration(Token **rest, Token *tok) {
     node->body = head.next;
     *rest = tok->next;
     return node;
+}
+
+static void create_param_lvars(Type *param) {
+    if (param) {
+        create_param_lvars(param->next);
+        NewObjLVar(GetStrIdent(param->name), param);
+    }
 }
 
 static Node *stmt(Token **rest, Token *tok) {
@@ -429,12 +460,28 @@ static Node *primary(Token **rest, Token *tok) {
     Error("Something is wrong");
 }
 
-Obj *ParseToken(Token *tok) {
+Obj *ReadFnAst(Token **rest, Token *tok) {
+    Type *ty = declspec(&tok, tok);
+    ty = declarator(&tok, tok, ty);
+    locals = NULL;
+
+    Obj *fn = calloc(1, sizeof(Obj));
+    fn->name = GetStrIdent(ty->name);
+    create_param_lvars(ty->params);
+    fn->params = locals;
     tok = SkipToken(tok, "{");
-    Node *body = compound_stmt(&tok, tok);
-    Obj *func = NewObj();
-    func->locals = locals;
-    func->body = body;
-    func->is_func = true;
-    return func;
+    fn->body = compound_stmt(rest, tok);
+    fn->locals = locals;
+    fn->is_func = true;
+    return fn;
+
+}
+
+Obj *ParseToken(Token *tok) {
+    Obj head = {};
+    Obj *cur = &head;
+
+    while (!IsTokenAtEof(tok))
+        cur = cur->next = ReadFnAst(&tok, tok);
+    return head.next;
 }
