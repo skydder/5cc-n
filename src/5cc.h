@@ -38,6 +38,7 @@ typedef enum {
     TY_INT,
     TY_PTR,
     TY_FN,
+    TY_ARRAY,
 } TypeKind;
 
 typedef struct Token Token;
@@ -95,8 +96,11 @@ struct Node {
 struct Type {
     TypeKind kind;
     Type *base;
-    Token *name;
+    int size;
+    
+    int array_len;
 
+    Token *name;
     Type *return_type;  // for func
     Type *params;
     Type *next;
@@ -114,5 +118,6 @@ void AddType(Node *node);
 bool IsTypeInteger(Type *ty);
 Type *NewTypePTR2(Type *base);
 Type *NewTypeFn(Type *return_type);
+Type *NewTypeArrayOf(Type *base, int len);
 Type *CopyType(Type *ty);
 extern Type *ty_int;

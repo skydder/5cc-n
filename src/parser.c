@@ -82,10 +82,16 @@ static Node *NewNodeVar(Obj *var) {
     return new;
 }
 
-static char *GetStrIdent(Token *tok) {
+static char *GetTokenIdent(Token *tok) {
     if (tok->kind != TK_IDENT)
         Error("This is not ident");
     return strndup(tok->str, tok->len);
+}
+
+static int GetTokenNum(Token *tok) {
+    if (tok->kind != TK_NUM)
+        Error("This is not number");
+    return tok->val;
 }
 
 //===================================================================
@@ -120,25 +126,34 @@ static Type *declspec(Token **rest, Token *tok) {
     return ty_int;
 }
 
+// "(" "int" ident ("," "int" ident) * ")"
+static Type *params(Token **rest, Token *tok, Type *ty) {
+    Type head = {};
+    Type *cur = &head;
+
+    while (!IsTokenEqual(tok, ")")) {
+        if (cur != &head)
+            tok = SkipToken(tok, ",");
+        Type *basety = declspec(&tok, tok);
+        Type *ty = declarator(&tok, tok, basety);
+        cur = cur->next = CopyType(ty);
+    }
+
+    ty = NewTypeFn(ty);
+    ty->params = head.next;
+    *rest = tok->next;
+    return ty;
+}
+
 static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
     if (IsTokenEqual(tok, "(")) {
-        tok = tok->next;
-
-        Type head = {};
-        Type *cur = &head;
-
-        while (!IsTokenEqual(tok, ")")) {
-            if (cur != &head)
-                tok = SkipToken(tok, ",");
-            Type *basety = declspec(&tok, tok);
-            Type *ty = declarator(&tok, tok, basety);
-            cur = cur->next = CopyType(ty);
-        }
-
-        ty = NewTypeFn(ty);
-        ty->params = head.next;
-        *rest = tok->next;
-        return ty;
+        return params(rest, tok->next, ty);
+    }
+    if (IsTokenEqual(tok, "[")) {
+        int len = GetTokenNum(tok->next);
+        tok = SkipToken(tok->next->next, "]");
+        ty = type_suffix(rest, tok, ty);
+        return NewTypeArrayOf(ty, len);
     }
     *rest = tok;
     return ty;
@@ -168,7 +183,7 @@ static Node *declaration(Token **rest, Token *tok) {
 
         Type *ty = declarator(&tok, tok, base_type);
         
-        Obj *var = NewObjLVar(GetStrIdent(ty->name), ty);
+        Obj *var = NewObjLVar(GetTokenIdent(ty->name), ty);
 
         if (!IsTokenEqual(tok, "="))
             continue;
@@ -188,7 +203,7 @@ static Node *declaration(Token **rest, Token *tok) {
 static void create_param_lvars(Type *param) {
     if (param) {
         create_param_lvars(param->next);
-        NewObjLVar(GetStrIdent(param->name), param);
+        NewObjLVar(GetTokenIdent(param->name), param);
     }
 }
 
@@ -340,7 +355,7 @@ static Node *NewNodeAdd(Node *lhs, Node *rhs) {
     if (!lhs->type->base && rhs->type->base)
         return NewNodeAdd(rhs, lhs);
 
-    rhs = NewNodeBinary(ND_MUL, rhs, NewNodeNum(8));
+    rhs = NewNodeBinary(ND_MUL, rhs, NewNodeNum(lhs->type->base->size));
     return NewNodeBinary(ND_ADD, lhs, rhs);
 }
 
@@ -352,14 +367,17 @@ static Node *NewNodeSub(Node *lhs, Node *rhs) {
         return NewNodeBinary(ND_SUB, lhs, rhs);
 
     if (lhs->type->base && rhs->type->base) {
-        lhs = NewNodeBinary(ND_SUB, lhs, rhs);
-        lhs->type = ty_int;
-        return NewNodeBinary(ND_DIV, lhs, NewNodeNum(8)); 
+        Node *node = NewNodeBinary(ND_SUB, lhs, rhs);
+        node->type = ty_int;
+        return NewNodeBinary(ND_DIV, node, NewNodeNum(lhs->type->base->size)); 
     }
     
     if (lhs->type->base && IsTypeInteger(rhs->type)) {
-        rhs = NewNodeBinary(ND_MUL, rhs, NewNodeNum(8));
-        return NewNodeBinary(ND_SUB, lhs, rhs);
+        rhs = NewNodeBinary(ND_MUL, rhs, NewNodeNum(lhs->type->base->size));
+        AddType(rhs);
+        Node *node = NewNodeBinary(ND_SUB, lhs, rhs);
+        node->type = lhs->type;
+        return node;
     }
     Error("invalid operands");
 }
@@ -466,7 +484,7 @@ Obj *ReadFnAst(Token **rest, Token *tok) {
     locals = NULL;
 
     Obj *fn = calloc(1, sizeof(Obj));
-    fn->name = GetStrIdent(ty->name);
+    fn->name = GetTokenIdent(ty->name);
     create_param_lvars(ty->params);
     fn->params = locals;
     tok = SkipToken(tok, "{");

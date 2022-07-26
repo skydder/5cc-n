@@ -30,6 +30,22 @@ static int count() {
 static int align_to(int n, int align) {
     return (n + align - 1) / align * align;
 }
+
+static void load(Type *type) {
+    switch (type->kind) {
+    case TY_ARRAY:
+        return;
+    default:
+        println("\tmov (%%rax), %%rax");
+        return;
+    }
+}
+
+static void store(void) {
+    pop("%rdi");
+    println("\tmov %%rax, (%%rdi)");
+}
+
 static void gen_expr(Node *node);
 static void gen_addr(Node *node) {
     switch (node->kind ) {
@@ -56,15 +72,14 @@ static void gen_expr(Node *node) {
     case ND_VAR:
         comment("var");
         gen_addr(node);
-        println("\tmov (%%rax), %%rax");
+        load(node->type);
         return;
     case ND_ASSIGN:
         comment("assign");
         gen_addr(node->lhs);
         push();
         gen_expr(node->rhs);
-        pop("%rdi");
-        println("\tmov %%rax, (%%rdi)");
+        store();
         return;
     case ND_ADDR:
         comment("addr");
@@ -73,7 +88,7 @@ static void gen_expr(Node *node) {
     case ND_DEREF:
         comment("deref");
         gen_expr(node->lhs);
-        println("\tmov (%%rax), %%rax");
+        load(node->type);
         return;
     case ND_FNCALL:{
         int nargs = 0;
@@ -184,7 +199,7 @@ static void gen_stmt(Node *node) {
 void Init(Obj *func) {
     int offset = 0;
     for (Obj *lv = func->locals; lv; lv = lv->next) {
-        offset += 8;
+        offset += lv->type->size;
         lv->offset = -offset;
     }
     func->stack_size = align_to(offset, 16);

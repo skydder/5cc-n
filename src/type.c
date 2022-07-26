@@ -4,12 +4,13 @@
 #include "5cc.h"
 
 
-Type *ty_int = &(Type){.kind = TY_INT};
+Type *ty_int = &(Type){.kind = TY_INT, .size = 8};
 
 Type *NewTypePTR2(Type *base) {
     Type *new = calloc(1, sizeof(Type));
     new->kind = TY_PTR;
     new->base = base;
+    new->size = 8;
     return new;
 }
 
@@ -17,6 +18,15 @@ Type *NewTypeFn(Type *return_type) {
     Type *new = calloc(1, sizeof(Type));
     new->kind = TY_FN;
     new->return_type = return_type;
+    return new;
+}
+
+Type *NewTypeArrayOf(Type *base, int len) {
+    Type *new = calloc(1, sizeof(Type));
+    new->kind = TY_ARRAY;
+    new->base = base;
+    new->size = base->size * len;
+    new->array_len = len;
     return new;
 }
 
@@ -53,7 +63,12 @@ void AddType(Node *node) {
     case ND_MUL:
     case ND_DIV:
     case ND_NEG:
+        node->type = node->lhs->type;
+        return;
+
     case ND_ASSIGN:
+        if (node->lhs->type->kind == TY_ARRAY)
+            Error("not an lvalue");
         node->type = node->lhs->type;
         return;
     case ND_EQ:
@@ -64,11 +79,18 @@ void AddType(Node *node) {
     case ND_FNCALL:
         node->type = ty_int;
         return;
+
+    case ND_VAR:
+        node->type = node->var->type;
+        return;
     case ND_ADDR:
-        node->type = NewTypePTR2(node->lhs->type);
+        if (node->lhs->type->kind == TY_ARRAY)
+            node->type = NewTypePTR2(node->lhs->type->base);
+        else
+            node->type = NewTypePTR2(node->lhs->type);
         return;
     case ND_DEREF:
-        if (node->lhs->type->kind != TY_PTR)
+        if (!node->lhs->type->base)
             Error("invalid pointer dereference");
         node->type = node->lhs->type->base;
         return;
