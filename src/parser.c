@@ -108,6 +108,7 @@ static int GetTokenNum(Token *tok) {
 // primary = "(" expr ")" | num
 //===================================================================
 static Node *primary(Token **rest, Token *tok);
+static Node *postfix(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
 static Node *mul(Token **rest, Token *tok);
 static Node *add(Token **rest, Token *tok);
@@ -146,9 +147,9 @@ static Type *params(Token **rest, Token *tok, Type *ty) {
 }
 
 static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
-    if (IsTokenEqual(tok, "(")) {
+    if (IsTokenEqual(tok, "("))
         return params(rest, tok->next, ty);
-    }
+    
     if (IsTokenEqual(tok, "[")) {
         int len = GetTokenNum(tok->next);
         tok = SkipToken(tok->next->next, "]");
@@ -182,7 +183,6 @@ static Node *declaration(Token **rest, Token *tok) {
             tok = SkipToken(tok, ",");
 
         Type *ty = declarator(&tok, tok, base_type);
-        
         Obj *var = NewObjLVar(GetTokenIdent(ty->name), ty);
 
         if (!IsTokenEqual(tok, "="))
@@ -429,7 +429,21 @@ static Node *unary(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "&")) {
         return NewNodeUnary(ND_ADDR, unary(rest, tok->next));
     }
-    return primary(rest, tok);
+    return postfix(rest, tok);
+}
+
+// primary ("[" expr "]")*
+static Node *postfix(Token **rest, Token *tok) {
+    Node *node = primary(&tok, tok);
+
+    while (IsTokenEqual(tok, "[")) {
+        Node *index = expr(&tok, tok->next);
+        tok = SkipToken(tok, "]");
+        node = NewNodeUnary(ND_DEREF, NewNodeAdd(node, index));
+    }
+
+    *rest = tok;
+    return node;
 }
 
 static Node *fncall(Token **rest, Token *tok) {
