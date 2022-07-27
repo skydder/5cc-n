@@ -57,12 +57,12 @@ struct Token {
 struct Obj {
     Obj *next;
     char *name;
+    Type *type;
 
     // for Lvar
-    int offset;
-    Type *type;
     bool is_lvar;
-
+    int offset;
+    
     // for Fn
     bool is_func;
     Obj *locals;

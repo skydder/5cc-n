@@ -95,17 +95,24 @@ static int GetTokenNum(Token *tok) {
 }
 
 //===================================================================
-// compound_stmt = "{" stmt* "}"
+// declspec = "int"
+// params  = ?declspec declarator ("," declspec declarator)* ")" 
+// declarator = ("*")* ident type-suffix
+// type-suffix = "(" param | "[" num "]
+// declaration = declspec declarator ?("=" assign) (declarator ?("=" assign))* ";"
+// compound_stmt = stmt* "}"
 // stmt       = expr_stmt || "return" expr ";" || "if" "(" expr ")" stmt ("else" stmt)? || 
 //              "for" "(" expr? ";" expr? ";" expr ")" stmt || "while" "(" expr ")" stmt ||
+//              "{" compound_stmt ||
 // expr_stmt  = expr ";"
 // expr       = assign 
 // assign     = equality ("=" assign)?
 // equality   = relational ("==" relational | "!=" relational)*
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-// mul = unary ("*" unary | "/" unary)*
-// unary   = ("+" | "-")? primary
-// primary = "(" expr ")" | num
+// mul = unary ("*" unary | "/" unary)* 
+// postfix    = primary ("[" expr "]")*
+// unary   = ("+" | "-" | "&" | "*") unary | postfix
+// primary = "(" expr ")" | num | "sizeof" unary
 //===================================================================
 static Node *primary(Token **rest, Token *tok);
 static Node *postfix(Token **rest, Token *tok);
@@ -119,15 +126,20 @@ static Node *expr(Token **rest, Token *tok);
 static Node *expr_stmt(Token **rest, Token *tok);
 static Node *compound_stmt(Token **rest, Token *tok);
 static Node *stmt(Token **rest, Token *tok);
-//===================================================================
+
+static Type *params(Token **rest, Token *tok, Type *ty);
+static Type *declspec(Token **rest, Token *tok);
+static Type *type_suffix(Token **rest, Token *tok, Type *ty);
 static Type *declarator(Token **rest, Token *tok, Type *ty);
+static Node *declaration(Token **rest, Token *tok);
+static void create_param_lvars(Type *param);
+//===================================================================
 
 static Type *declspec(Token **rest, Token *tok) {
     *rest = SkipToken(tok, "int");
     return ty_int;
 }
 
-// "(" "int" ident ("," "int" ident) * ")"
 static Type *params(Token **rest, Token *tok, Type *ty) {
     Type head = {};
     Type *cur = &head;
@@ -470,6 +482,11 @@ static Node *primary(Token **rest, Token *tok) {
         Node *node = expr(&tok, tok->next);
         *rest = SkipToken(tok, ")");
         return node;
+    }
+    if (IsTokenEqual(tok, "sizeof")) {
+        Node *node = unary(rest, tok->next);
+        AddType(node);
+        return NewNodeNum(node->type->size);
     }
 
     if (tok->kind == TK_IDENT) {
