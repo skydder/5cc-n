@@ -50,7 +50,11 @@ static void gen_expr(Node *node);
 static void gen_addr(Node *node) {
     switch (node->kind ) {
     case ND_VAR:
-        println("\tlea %d(%%rbp), %%rax", node->var->offset);
+        if (node->var->is_lvar) {
+            println("\tlea %d(%%rbp), %%rax", node->var->offset);
+        } else {
+            println("\tlea %s(%%rip), %%rax", node->var->name);
+        }
         return;
     case ND_DEREF:
         gen_expr(node->lhs);
@@ -196,7 +200,7 @@ static void gen_stmt(Node *node) {
     Error("invalid expression");
 }
 
-void Init(Obj *func) {
+void InitLVarOffset(Obj *func) {
     int offset = 0;
     for (Obj *lv = func->locals; lv; lv = lv->next) {
         offset += lv->type->size;
@@ -205,12 +209,27 @@ void Init(Obj *func) {
     func->stack_size = align_to(offset, 16);
 }
 
-void GenCode(Obj *func) {
+void EmitData(Obj* gvar) {
+    for (Obj *var = gvar; var; var = var->next) {
+        if (var->is_func) continue;
+
+        println(".data");
+        println(".global %s", var->name);
+        println("%s:", var->name);
+        println("   .zero %d", var->type->size);
+    }
+
+}
+
+void EmitFunc(Obj *func) {
     assert(func->is_func);
     for (Obj *fn = func; fn; fn = fn->next) {
-        Init(fn);
+        if (!fn->is_func) continue;
+
+        InitLVarOffset(fn);
         current_fn = fn;
         println(".globl %s", fn->name);
+        println(".text");
         println("%s:", fn->name);
 
         println("\tpush %%rbp");
@@ -230,4 +249,10 @@ void GenCode(Obj *func) {
         println("\tpop %%rbp");
         println("\tret");
     }
+}
+
+void GenCode(Obj *prog) {
+    EmitData(prog);
+    EmitFunc(prog);
+
 }

@@ -49,8 +49,8 @@ static Token *NewTokenReserved(char **start) {
         char *word;
         int len;
     } keyword[] = {
-        {"return", 6}, {"if", 2}, {"else", 4}, {"for", 3}, 
-        {"while", 5}, {"int", 3}, {"sizeof", 6}, {NULL, 0},
+        {"return", 6}, {"for", 3}, {"if", 2}, {"while", 5},
+        {"sizeof", 6}, {"int", 3}, {"else", 4}, {NULL, 0},
     };
 
     for (int i = 0; symbol[i].word; i++) {

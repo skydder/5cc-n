@@ -29,23 +29,41 @@ static bool IsTokenAtEof(Token *tok) {
 }
 
 Obj *locals;
+Obj *globals;
 
 static Obj *NewObj() {
     Obj *new = calloc(1, sizeof(Obj));
     return new;
 }
 
-static Obj *NewObjLVar(char *name, Type *type) {
+static Obj *NewObjVar(char *name, Type *type) {
     Obj *new = NewObj();
     new->name = name;
-    new->next = locals;
     new->type = type;
+    return new;
+}
+
+static Obj *NewObjLVar(char *name, Type *type) {
+    Obj *new = NewObjVar(name, type);
+    new->is_lvar = true;
+    new->next = locals;
     locals = new;
     return new;
 }
 
-static Obj *FindObjLVar(Token *tok) {
+static Obj *NewObjGVar(char *name, Type *type) {
+    Obj *new = NewObjVar(name, type);
+    new->is_lvar = false;
+    new->next = globals;
+    globals = new;
+    return new;
+}
+
+static Obj *FindObjVar(Token *tok) {
     for (Obj *var = locals; var; var = var->next)
+        if (strlen(var->name) == tok->len && !strncmp(tok->str, var->name, tok->len))
+            return var;
+    for (Obj *var = globals; var; var = var->next)
         if (strlen(var->name) == tok->len && !strncmp(tok->str, var->name, tok->len))
             return var;
     return NULL;
@@ -493,7 +511,7 @@ static Node *primary(Token **rest, Token *tok) {
         if (IsTokenEqual(tok->next, "(")) {
             return fncall(rest, tok);
         } else {
-            Obj *var = FindObjLVar(tok);
+            Obj *var = FindObjVar(tok);
             if (!var)
                 Error("unexpected expression");
             *rest = tok->next;
@@ -509,28 +527,51 @@ static Node *primary(Token **rest, Token *tok) {
     Error("Something is wrong");
 }
 
-Obj *ReadFnAst(Token **rest, Token *tok) {
-    Type *ty = declspec(&tok, tok);
-    ty = declarator(&tok, tok, ty);
-    locals = NULL;
+Token *Function(Token *tok, Type *base) {
+    Type *ty = declarator(&tok, tok, base);
+    
+    Obj *fn = NewObjGVar(GetTokenIdent(ty->name), ty);
+    fn->is_func = true;
 
-    Obj *fn = calloc(1, sizeof(Obj));
-    fn->name = GetTokenIdent(ty->name);
+    locals = NULL;
     create_param_lvars(ty->params);
     fn->params = locals;
-    tok = SkipToken(tok, "{");
-    fn->body = compound_stmt(rest, tok);
-    fn->locals = locals;
-    fn->is_func = true;
-    return fn;
 
+    tok = SkipToken(tok, "{");
+    fn->body = compound_stmt(&tok, tok);
+    fn->locals = locals;
+    
+    return tok;
+}
+
+Token *gvar(Token *tok, Type *base) {
+    for (int i = 0; !ConsumeToken(&tok, tok, ";"); i++) {
+        if (i > 0) tok = SkipToken(tok, ",");
+
+        Type *ty = declarator(&tok, tok, base);
+        NewObjGVar(GetTokenIdent(ty->name), ty);
+    }
+    return tok;
+}
+
+bool IsFunc(Token *tok) {
+    if (IsTokenEqual(tok, ";")) return false;
+
+    Type tmp = {};
+    Type *ty = declarator(&tok, tok, &tmp);
+    return ty->kind == TY_FN;
 }
 
 Obj *ParseToken(Token *tok) {
-    Obj head = {};
-    Obj *cur = &head;
+    globals = NULL;
 
-    while (!IsTokenAtEof(tok))
-        cur = cur->next = ReadFnAst(&tok, tok);
-    return head.next;
+    while (!IsTokenAtEof(tok)) {
+        Type *base = declspec(&tok, tok);
+        if (IsFunc(tok)) {
+            tok = Function(tok, base);
+            continue;
+        }
+        tok = gvar(tok, base);
+    }
+    return globals;
 }
