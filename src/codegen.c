@@ -4,7 +4,8 @@
 #include "5cc.h"
 
 static int depth;
-static char* argreg[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"}; 
+static char *argreg64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"}; 
+static char *argreg8[] = {"%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"};
 static Obj *current_fn;
 
 static void comment(char *msg) {
@@ -32,18 +33,21 @@ static int align_to(int n, int align) {
 }
 
 static void load(Type *type) {
-    switch (type->kind) {
-    case TY_ARRAY:
+    if (type->kind == TY_ARRAY)
         return;
-    default:
+    if (type->size == 1)
+        println("\tmovsbq (%%rax), %%rax");
+    else
         println("\tmov (%%rax), %%rax");
-        return;
-    }
+    return;
 }
 
-static void store(void) {
+static void store(Type *type) {
     pop("%rdi");
-    println("\tmov %%rax, (%%rdi)");
+    if (type->size == 1)
+        println("\tmov %%al, (%%rdi)");
+    else
+        println("\tmov %%rax, (%%rdi)");
 }
 
 static void gen_expr(Node *node);
@@ -83,7 +87,7 @@ static void gen_expr(Node *node) {
         gen_addr(node->lhs);
         push();
         gen_expr(node->rhs);
-        store();
+        store(node->type);
         return;
     case ND_ADDR:
         comment("addr");
@@ -103,7 +107,7 @@ static void gen_expr(Node *node) {
         }
         
         for (int i = nargs - 1; i >= 0; i--)
-            pop(argreg[i]);
+            pop(argreg64[i]);
 
         println("\tmov $0, %%rax");
         println("\tcall %s", node->fn_name);
@@ -200,7 +204,7 @@ static void gen_stmt(Node *node) {
     Error("invalid expression");
 }
 
-void InitLVarOffset(Obj *func) {
+static void InitLVarOffset(Obj *func) {
     int offset = 0;
     for (Obj *lv = func->locals; lv; lv = lv->next) {
         offset += lv->type->size;
@@ -209,27 +213,28 @@ void InitLVarOffset(Obj *func) {
     func->stack_size = align_to(offset, 16);
 }
 
-void EmitData(Obj* gvar) {
+static void EmitData(Obj* gvar) {
     for (Obj *var = gvar; var; var = var->next) {
         if (var->is_func) continue;
 
         println(".data");
-        println(".global %s", var->name);
+        println("\t.global %s", var->name);
         println("%s:", var->name);
-        println("   .zero %d", var->type->size);
+        println("\t.zero %d", var->type->size);
     }
 
 }
 
-void EmitFunc(Obj *func) {
+static void EmitFunc(Obj *func) {
     assert(func->is_func);
     for (Obj *fn = func; fn; fn = fn->next) {
         if (!fn->is_func) continue;
 
         InitLVarOffset(fn);
         current_fn = fn;
-        println(".globl %s", fn->name);
         println(".text");
+        println("\t.globl %s", fn->name);
+        
         println("%s:", fn->name);
 
         println("\tpush %%rbp");
@@ -237,8 +242,13 @@ void EmitFunc(Obj *func) {
         println("\tsub $%d, %%rsp", fn->stack_size);
 
         int i = 0;
-        for (Obj *var = fn->params; var; var = var->next)
-            println("\tmov %s, %d(%%rbp)", argreg[i++], var->offset);
+        for (Obj *var = fn->params; var; var = var->next) {
+            if (var->type->size == 1)
+                println("\tmov %s, %d(%%rbp)\n", argreg8[i++], var->offset);
+            else
+                println("\tmov %s, %d(%%rbp)", argreg64[i++], var->offset);
+        }
+            // 
 
         for (Node *n = fn->body; n; n = n->next) {
             gen_stmt(n);

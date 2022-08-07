@@ -5,6 +5,7 @@
 
 
 Type *ty_int = &(Type){.kind = TY_INT, .size = 8};
+Type *ty_char = &(Type){.kind = TY_CHAR, .size = 1};
 
 Type *NewTypePTR2(Type *base) {
     Type *new = calloc(1, sizeof(Type));
@@ -31,7 +32,7 @@ Type *NewTypeArrayOf(Type *base, int len) {
 }
 
 bool IsTypeInteger(Type *ty) {
-    return ty->kind == TY_INT;
+    return ty->kind == TY_INT || ty->kind == TY_CHAR;
 }
 
 Type *CopyType(Type *ty) {

@@ -39,6 +39,7 @@ typedef enum {
     TY_PTR,
     TY_FN,
     TY_ARRAY,
+    TY_CHAR,
 } TypeKind;
 
 typedef struct Token Token;
@@ -121,3 +122,4 @@ Type *NewTypeFn(Type *return_type);
 Type *NewTypeArrayOf(Type *base, int len);
 Type *CopyType(Type *ty);
 extern Type *ty_int;
+extern Type *ty_char;

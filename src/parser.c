@@ -23,13 +23,12 @@ static bool ConsumeToken(Token **rest, Token *tok, char *op) {
     return false;
 }
 
-
 static bool IsTokenAtEof(Token *tok) {
   return tok->kind == TK_EOF;
 }
 
-Obj *locals;
-Obj *globals;
+static Obj *locals;
+static Obj *globals;
 
 static Obj *NewObj() {
     Obj *new = calloc(1, sizeof(Obj));
@@ -69,7 +68,6 @@ static Obj *FindObjVar(Token *tok) {
     return NULL;
 }
 
-
 static Node *NewNodeKind(NodeKind kind) {
     Node *new = calloc(1, sizeof(Node));
     new->kind = kind;
@@ -88,11 +86,13 @@ static Node *NewNodeNum(int val) {
     new->val = val;
     return new;
 }
+
 static Node *NewNodeUnary(NodeKind kind, Node *lhs) {
     Node *new = NewNodeKind(kind);
     new->lhs = lhs;
     return new;
 }
+
 static Node *NewNodeVar(Obj *var) {
     Node *new = NewNodeKind(ND_VAR);
     new->var = var;
@@ -110,6 +110,10 @@ static int GetTokenNum(Token *tok) {
     if (tok->kind != TK_NUM)
         Error("This is not number");
     return tok->val;
+}
+
+static bool IsTokenType(Token *tok) {
+    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char");
 }
 
 //===================================================================
@@ -154,6 +158,10 @@ static void create_param_lvars(Type *param);
 //===================================================================
 
 static Type *declspec(Token **rest, Token *tok) {
+    if (IsTokenEqual(tok, "char")) {
+        *rest = SkipToken(tok, "char");
+        return ty_char;
+    }
     *rest = SkipToken(tok, "int");
     return ty_int;
 }
@@ -294,7 +302,7 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     Node *cur = &head;
 
     while (!IsTokenEqual(tok, "}")) {
-        if (IsTokenEqual(tok, "int"))
+        if (IsTokenType(tok))
             cur = cur->next = declaration(&tok, tok);
         else
             cur = cur->next = stmt(&tok, tok);
@@ -462,7 +470,6 @@ static Node *unary(Token **rest, Token *tok) {
     return postfix(rest, tok);
 }
 
-// primary ("[" expr "]")*
 static Node *postfix(Token **rest, Token *tok) {
     Node *node = primary(&tok, tok);
 
@@ -527,7 +534,7 @@ static Node *primary(Token **rest, Token *tok) {
     Error("Something is wrong");
 }
 
-Token *Function(Token *tok, Type *base) {
+static Token *Function(Token *tok, Type *base) {
     Type *ty = declarator(&tok, tok, base);
     
     Obj *fn = NewObjGVar(GetTokenIdent(ty->name), ty);
@@ -544,7 +551,7 @@ Token *Function(Token *tok, Type *base) {
     return tok;
 }
 
-Token *gvar(Token *tok, Type *base) {
+static Token *Gvar(Token *tok, Type *base) {
     for (int i = 0; !ConsumeToken(&tok, tok, ";"); i++) {
         if (i > 0) tok = SkipToken(tok, ",");
 
@@ -554,7 +561,7 @@ Token *gvar(Token *tok, Type *base) {
     return tok;
 }
 
-bool IsFunc(Token *tok) {
+static bool IsFunc(Token *tok) {
     if (IsTokenEqual(tok, ";")) return false;
 
     Type tmp = {};
@@ -571,7 +578,7 @@ Obj *ParseToken(Token *tok) {
             tok = Function(tok, base);
             continue;
         }
-        tok = gvar(tok, base);
+        tok = Gvar(tok, base);
     }
     return globals;
 }
