@@ -8,6 +8,7 @@ typedef enum {
     TK_RESERVED,
     TK_NUM,
     TK_IDENT,
+    TK_STR,
     TK_EOF,
 } TokenKind;
 
@@ -50,8 +51,10 @@ typedef struct Type Type;
 struct Token {
     TokenKind kind;
     Token *next;
+    Type *type;
     int val;
     char *str;
+    char *string_literal;
     int len;
 };
 
@@ -70,6 +73,8 @@ struct Obj {
     Obj *params;
     Node *body;
     int stack_size;
+
+    char *init_data;
 };
 
 struct Node {
@@ -123,3 +128,8 @@ Type *NewTypeArrayOf(Type *base, int len);
 Type *CopyType(Type *ty);
 extern Type *ty_int;
 extern Type *ty_char;
+
+void Debug(char *fmt, ...);
+void PrintToken(Token *tok);
+
+bool is_al(char c);

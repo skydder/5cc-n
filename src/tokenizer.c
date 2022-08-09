@@ -5,9 +5,8 @@
 
 #include "5cc.h"
 
-static bool is_al(char c) {
-    return ('a' <= c && c <= 'z') ||
-           ('A' <= c && c <= 'Z') ||
+ bool is_al(char c) {
+    return isalpha(c) ||
            (c == '_');
 }
 
@@ -71,6 +70,21 @@ static Token *NewTokenReserved(char **start) {
     return new;
 }
 
+static Token *ReadStrLiteral(char **start) {
+    char *p = *start + 1;
+    for (;*p != '"';p++) {
+        if (*p == '\n' || *p == '\0') {
+            Error("unclosed string literal");
+        }
+    }
+    Token *tok = NewToken(TK_STR, *start, p);
+    tok->string_literal = strndup(*start + 1, tok->len - 1);
+    tok->type = NewTypeArrayOf(ty_char, tok->len);
+    // Debug("%s", tok->string_literal);
+    *start = p + 1;
+    return tok;
+}
+
 Token *Tokenize(char *p) {
     Token head;
     head.next = NULL;
@@ -96,6 +110,11 @@ Token *Tokenize(char *p) {
             continue;
         }
 
+        if (*p == '\"') {
+            cur = cur->next = ReadStrLiteral(&p);
+            continue;
+        }
+
         if (is_al(*p)) {
             char *start = p;
             for (; is_alnum(*p);) p++;  // len(ident_name)
@@ -103,7 +122,7 @@ Token *Tokenize(char *p) {
             continue;
         }
 
-        Error("Can't tokenize!");
+         Error("Can't tokenize!");
     }
 
     cur = cur->next = NewToken(TK_EOF, p, p);

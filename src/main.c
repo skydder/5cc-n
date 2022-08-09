@@ -10,8 +10,8 @@ int main(int argc, char **argv) {
         return 1;
     }
     UserInput = argv[1];
-
     Token *token = Tokenize(argv[1]);
+    // PrintToken(token);
     Obj *node = ParseToken(token);
 
     GenCode(node);

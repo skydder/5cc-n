@@ -220,16 +220,22 @@ static void EmitData(Obj* gvar) {
         println(".data");
         println("\t.global %s", var->name);
         println("%s:", var->name);
-        println("\t.zero %d", var->type->size);
+        
+        if (gvar->init_data) {
+            for (int i = 0; i < gvar->type->array_len; i++)
+                println("\t.byte %d", gvar->init_data[i]);
+        } else {
+            println("\t.zero %d", var->type->size);
+        }
     }
 
 }
 
 static void EmitFunc(Obj *func) {
-    assert(func->is_func);
+    
     for (Obj *fn = func; fn; fn = fn->next) {
         if (!fn->is_func) continue;
-
+        assert(fn->is_func);
         InitLVarOffset(fn);
         current_fn = fn;
         println(".text");

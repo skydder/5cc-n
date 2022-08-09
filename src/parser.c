@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -25,6 +26,13 @@ static bool ConsumeToken(Token **rest, Token *tok, char *op) {
 
 static bool IsTokenAtEof(Token *tok) {
   return tok->kind == TK_EOF;
+}
+
+static char *NewUniqueName(void) {
+    static int count = 0;
+    char *name = calloc(sizeof(char), 16);
+    sprintf(name, ".L.L.%d", count++);
+    return name;
 }
 
 static Obj *locals;
@@ -66,6 +74,16 @@ static Obj *FindObjVar(Token *tok) {
         if (strlen(var->name) == tok->len && !strncmp(tok->str, var->name, tok->len))
             return var;
     return NULL;
+}
+
+static Obj *NewObjGVarAnon(Type *type) {
+    return NewObjGVar(NewUniqueName(), type);
+}
+
+static Obj *NewObjString(char *str, Type *type) {
+    Obj *new = NewObjGVarAnon(type);
+    new->init_data = str;
+    return new;
 }
 
 static Node *NewNodeKind(NodeKind kind) {
@@ -520,7 +538,7 @@ static Node *primary(Token **rest, Token *tok) {
         } else {
             Obj *var = FindObjVar(tok);
             if (!var)
-                Error("unexpected expression");
+                Error("unexpected expression1");
             *rest = tok->next;
             return NewNodeVar(var);
         }
@@ -530,6 +548,12 @@ static Node *primary(Token **rest, Token *tok) {
         Node *node = NewNodeNum(tok->val);
         *rest = tok->next;
         return node;
+    }
+
+    if (tok->kind == TK_STR) {
+        Obj *str = NewObjString(tok->string_literal, tok->type);
+        *rest = tok->next;
+        return NewNodeVar(str);
     }
     Error("Something is wrong");
 }
