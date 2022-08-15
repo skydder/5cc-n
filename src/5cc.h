@@ -3,7 +3,6 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
-
 typedef enum {
     TK_RESERVED,
     TK_NUM,
@@ -51,11 +50,11 @@ typedef struct Type Type;
 struct Token {
     TokenKind kind;
     Token *next;
-    Type *type;
-    int val;
-    char *str;
-    char *string_literal;
+    char *loc;
     int len;
+    
+    int val;
+    char *string;
 };
 
 struct Obj {
@@ -81,6 +80,8 @@ struct Node {
     NodeKind kind;
     Type *type;
     Node *next;
+    Token *tok;
+
     Node *lhs;
     Node *rhs;
 
@@ -112,13 +113,9 @@ struct Type {
     Type *next;
 };
 
-
 Token *Tokenize(char *p);
 Obj *ParseToken(Token *tok);
 void GenCode(Obj *func);
-
-void Error(char *fmt, ...);
-void println(char *fmt, ...);
 
 void AddType(Node *node);
 bool IsTypeInteger(Type *ty);
@@ -129,7 +126,12 @@ Type *CopyType(Type *ty);
 extern Type *ty_int;
 extern Type *ty_char;
 
+extern char *UserInput;
+extern char *FileName;
+bool IsStrSame(char *A, char *B);
+void println(char *fmt, ...);
+void Error(char *fmt, ...);
+void ErrorAt(char *loc, char *fmt, ...);
+void ErrorToken(Token *tok, char *fmt, ...);
 void Debug(char *fmt, ...);
 void PrintToken(Token *tok);
-
-bool is_al(char c);

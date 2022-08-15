@@ -1,4 +1,4 @@
-SRCS=main.c tokenizer.c parser.c codegen.c util.c type.c debug.c
+SRCS=main.c tokenizer.c parser.c codegen.c util.c type.c
 OBJS=$(SRCS:.c=.o)
 
 5cc:$(OBJS)
@@ -14,4 +14,4 @@ tmp: tmp.s
 clean:
 	rm -f 5cc *.o *~ tmp*
 
-.PHONY: test clean
+.PHONY: test clean tmp

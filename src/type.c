@@ -69,7 +69,7 @@ void AddType(Node *node) {
 
     case ND_ASSIGN:
         if (node->lhs->type->kind == TY_ARRAY)
-            Error("not an lvalue");
+            ErrorToken(node->tok, "not an lvalue");
         node->type = node->lhs->type;
         return;
     case ND_EQ:
@@ -92,7 +92,7 @@ void AddType(Node *node) {
         return;
     case ND_DEREF:
         if (!node->lhs->type->base)
-            Error("invalid pointer dereference");
+            ErrorToken(node->tok, "invalid pointer dereference");
         node->type = node->lhs->type->base;
         return;
     }

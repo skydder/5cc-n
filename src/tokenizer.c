@@ -5,17 +5,13 @@
 
 #include "5cc.h"
 
- bool is_al(char c) {
+static bool is_al(char c) {
     return isalpha(c) ||
            (c == '_');
 }
 
 static bool is_alnum(char c) {
     return is_al(c) || ('0' <= c && c <= '9');
-}
-
-static bool IsStrSame(char *A, char *B) {
-    return (strncmp(A, B, strlen(B)) == 0);
 }
 
 static bool IsStrReserved(char *A, char *reserved) {
@@ -25,7 +21,7 @@ static bool IsStrReserved(char *A, char *reserved) {
 static Token *NewToken(TokenKind TK, char *start, char *end) {
     Token *new = calloc(1, sizeof(Token));
     new->kind = TK;
-    new->str = start;
+    new->loc = start;
     new->len = end - start;
     return new;
 }
@@ -71,16 +67,15 @@ static Token *NewTokenReserved(char **start) {
 }
 
 static Token *ReadStrLiteral(char **start) {
+
     char *p = *start + 1;
     for (;*p != '"';p++) {
         if (*p == '\n' || *p == '\0') {
-            Error("unclosed string literal");
+            ErrorAt(p, "unclosed string literal");
         }
     }
     Token *tok = NewToken(TK_STR, *start, p);
-    tok->string_literal = strndup(*start + 1, tok->len - 1);
-    tok->type = NewTypeArrayOf(ty_char, tok->len);
-    // Debug("%s", tok->string_literal);
+    tok->string = strndup(*start + 1, tok->len - 1);
     *start = p + 1;
     return tok;
 }
@@ -122,7 +117,7 @@ Token *Tokenize(char *p) {
             continue;
         }
 
-         Error("Can't tokenize!");
+         ErrorAt(p, "Can't tokenize!");
     }
 
     cur = cur->next = NewToken(TK_EOF, p, p);
