@@ -66,17 +66,47 @@ static Token *NewTokenReserved(char **start) {
     return new;
 }
 
-static Token *ReadStrLiteral(char **start) {
+static char ReadEscapedLiteral(char *p) {
+    switch (*p) {
+    case 'a': return '\a';
+    case 'b': return '\b';
+    case 't': return '\t';
+    case 'n': return '\n';
+    case 'v': return '\v';
+    case 'f': return '\f';
+    case 'r': return '\r';
+    case 'e': return 27;
+    default: return *p;
+    }
+}
 
-    char *p = *start + 1;
-    for (;*p != '"';p++) {
+static char *EndOfStrLiteral(char *p) {
+    char *start = p;
+    for (; *p != '\"'; p++) {
         if (*p == '\n' || *p == '\0') {
-            ErrorAt(p, "unclosed string literal");
+            ErrorAt(start, "unclosed string literal");
+        }
+        if (*p == '\\') p++;
+    }
+    return p;
+}
+
+static Token *ReadStrLiteral(char **start) {
+    char *end = EndOfStrLiteral(*start + 1);
+    char *string = calloc(end - *start, sizeof(char));
+    int len  = 0;
+
+    for (char *p = *start + 1; p < end; p++) {
+        if (*p == '\\') {
+            string[len++] = ReadEscapedLiteral(p + 1);
+            p++;
+        } else { 
+            string[len++] = *p;
         }
     }
-    Token *tok = NewToken(TK_STR, *start, p);
-    tok->string = strndup(*start + 1, tok->len - 1);
-    *start = p + 1;
+    Token *tok = NewToken(TK_STR, *start, end + 1);
+    tok->string = string;
+    *start = end + 1;
     return tok;
 }
 
@@ -105,7 +135,7 @@ Token *Tokenize(char *p) {
             continue;
         }
 
-        if (*p == '\"') {
+        if (*p == '"') {
             cur = cur->next = ReadStrLiteral(&p);
             continue;
         }

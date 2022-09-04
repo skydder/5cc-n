@@ -70,7 +70,6 @@ static void gen_addr(Node *node) {
 static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM:
-        comment("num");
         println("\tmov $%d, %%rax", node->val);
         return;
     case ND_NEG:
@@ -78,23 +77,19 @@ static void gen_expr(Node *node) {
         println("\tneg %%rax");
         return;
     case ND_VAR:
-        comment("var");
         gen_addr(node);
         load(node->type);
         return;
     case ND_ASSIGN:
-        comment("assign");
         gen_addr(node->lhs);
         push();
         gen_expr(node->rhs);
         store(node->type);
         return;
     case ND_ADDR:
-        comment("addr");
         gen_addr(node->lhs);
         return;
     case ND_DEREF:
-        comment("deref");
         gen_expr(node->lhs);
         load(node->type);
         return;
@@ -228,11 +223,9 @@ static void EmitData(Obj* gvar) {
             println("\t.zero %d", var->type->size);
         }
     }
-
 }
 
 static void EmitFunc(Obj *func) {
-    
     for (Obj *fn = func; fn; fn = fn->next) {
         if (!fn->is_func) continue;
         assert(fn->is_func);
@@ -254,7 +247,6 @@ static void EmitFunc(Obj *func) {
             else
                 println("\tmov %s, %d(%%rbp)", argreg64[i++], var->offset);
         }
-            // 
 
         for (Node *n = fn->body; n; n = n->next) {
             gen_stmt(n);

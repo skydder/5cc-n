@@ -11,7 +11,7 @@ static bool IsTokenEqual(Token *tok, char *op) {
 
 static Token *SkipToken(Token *tok, char *s) {
   if (!IsTokenEqual(tok, s))
-    Error("expected '%s'", s);
+    ErrorToken(tok, "expected '%s'", s);
   return tok->next;
 }
 
@@ -81,8 +81,7 @@ static Obj *NewObjGVarAnon(Type *type) {
 }
 
 static Obj *NewObjString(Token *tok) {
-
-    Obj *new = NewObjGVarAnon(NewTypeArrayOf(ty_char, tok->len));
+    Obj *new = NewObjGVarAnon(NewTypeArrayOf(ty_char, strlen(tok->string) + 1));
     new->init_data = tok->string;
     return new;
 }
