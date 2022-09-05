@@ -5,6 +5,7 @@
 
 #include "5cc.h"
 
+//===================================================================
 static bool IsTokenEqual(Token *tok, char *op) {
   return tok->kind == TK_RESERVED && memcmp(tok->loc, op, tok->len) == 0 && op[tok->len] == '\0';
 }
@@ -35,6 +36,42 @@ static char *NewUniqueName(void) {
     return name;
 }
 
+//===================================================================
+typedef struct VarScope VarScope;
+typedef struct Scope Scope;
+
+struct VarScope {
+    VarScope *next;
+    Obj *var;
+    char *name;
+};
+
+struct Scope {
+    Scope *next;
+    VarScope *vars;
+};
+
+static Scope *scope = &(Scope){};
+static void EnterScope() {
+    Scope *new = calloc(1, sizeof(Scope));
+    new->next = scope;
+    scope = new;
+}
+
+static void LeaveScope() {
+    scope = scope->next;
+}
+
+static VarScope *PushScope(char *name, Obj *var) {
+    VarScope *new = calloc(1, sizeof(VarScope));
+    new->name = name;
+    new->var = var;
+    new->next = scope->vars;
+    scope->vars = new;
+    return new;
+}
+
+//===================================================================
 static Obj *locals;
 static Obj *globals;
 
@@ -47,6 +84,7 @@ static Obj *NewObjVar(char *name, Type *type) {
     Obj *new = NewObj();
     new->name = name;
     new->type = type;
+    PushScope(name, new);
     return new;
 }
 
@@ -67,12 +105,13 @@ static Obj *NewObjGVar(char *name, Type *type) {
 }
 
 static Obj *FindObjVar(Token *tok) {
-    for (Obj *var = locals; var; var = var->next)
-        if (strlen(var->name) == tok->len && !strncmp(tok->loc, var->name, tok->len))
-            return var;
-    for (Obj *var = globals; var; var = var->next)
-        if (strlen(var->name) == tok->len && !strncmp(tok->loc, var->name, tok->len))
-            return var;
+    for (Scope *sc = scope; sc; sc = sc->next) {
+        for (VarScope *vsc = sc->vars; vsc; vsc = vsc->next) {
+            if (strlen(vsc->name) == tok->len && !strncmp(tok->loc, vsc->name, tok->len))
+                return vsc->var;
+        }
+    }
+
     return NULL;
 }
 
@@ -86,6 +125,7 @@ static Obj *NewObjString(Token *tok) {
     return new;
 }
 
+//===================================================================
 static Node *NewNodeKind(NodeKind kind, Token *tok) {
     Node *new = calloc(1, sizeof(Node));
     new->kind = kind;
@@ -319,7 +359,7 @@ static Node *stmt(Token **rest, Token *tok) {
 static Node *compound_stmt(Token **rest, Token *tok) {
     Node head  = {};
     Node *cur = &head;
-
+    EnterScope();
     while (!IsTokenEqual(tok, "}")) {
         if (IsTokenType(tok))
             cur = cur->next = declaration(&tok, tok);
@@ -327,6 +367,8 @@ static Node *compound_stmt(Token **rest, Token *tok) {
             cur = cur->next = stmt(&tok, tok);
         AddType(cur);
     }
+
+    LeaveScope();
     Node *node = NewNodeKind(ND_BLOCK, tok);
     node->body = head.next;
     *rest = tok->next;
@@ -566,6 +608,7 @@ static Token *Function(Token *tok, Type *base) {
     fn->is_func = true;
 
     locals = NULL;
+    EnterScope();
     create_param_lvars(ty->params);
     fn->params = locals;
 
@@ -573,6 +616,7 @@ static Token *Function(Token *tok, Type *base) {
     fn->body = compound_stmt(&tok, tok);
     fn->locals = locals;
     
+    LeaveScope();
     return tok;
 }
 
