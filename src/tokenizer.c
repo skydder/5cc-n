@@ -129,6 +129,19 @@ Token *Tokenize(char *p) {
             continue;
         }
 
+        if (IsStrSame(p, "//")) {
+            p += 2;
+            while (*p != '\n') p++;
+            continue;
+        }
+        
+        if (IsStrSame(p, "/*")) {
+            char *q = strstr(p + 2, "*/");
+            if (!q) ErrorAt(p, "unclosed comment");
+            p = q + 2;
+            continue;
+        }
+
         Token *tok = NewTokenReserved(&p);
         if (tok) {
             cur = cur->next = tok;

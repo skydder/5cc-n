@@ -197,4 +197,8 @@ assert 120 'int main() { return "\ax\ny"[1]; }'
 assert 10 'int main() { return "\ax\ny"[2]; }'
 assert 121 'int main() { return "\ax\ny"[3]; }'
 
+assert 2 'int main() { /* return 1; */ return 2; }'
+assert 2 'int main() { // return 1;
+return 2; }'
+
 echo OK
