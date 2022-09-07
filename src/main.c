@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
     
     FileName = argv[1];
     if (IsStrSame(argv[1], "-c")) {
-        FileName = "<string>";
+        FileName = "<arg:>";
         UserInput = argv[2];
     } else
         UserInput = ReadFile(argv[1]);

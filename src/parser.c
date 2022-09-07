@@ -386,7 +386,12 @@ static Node *expr_stmt(Token **rest, Token *tok) {
 }
 
 static Node *expr(Token **rest, Token *tok) {
-    return assign(rest, tok);
+    Node *node = assign(&tok, tok);
+    if (IsTokenEqual(tok, ",")) {
+        return NewNodeBinary(ND_COMMA, tok, node, expr(rest, tok->next));
+    }
+    *rest = tok;
+    return node;
 }
 
 static Node *assign(Token **rest, Token *tok) {
@@ -553,7 +558,7 @@ static Node *fncall(Token **rest, Token *tok) {
     Node *cur = &head;
 
     while (!IsTokenEqual(tok, ")")) {
-        cur = cur->next = expr(&tok, tok);
+        cur = cur->next = assign(&tok, tok);
         if (!IsTokenEqual(tok, ")"))
             tok = SkipToken(tok, ",");
     }

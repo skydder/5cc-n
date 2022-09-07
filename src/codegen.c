@@ -93,6 +93,10 @@ static void gen_expr(Node *node) {
         gen_expr(node->lhs);
         load(node->type);
         return;
+    case ND_COMMA:
+        gen_expr(node->lhs);
+        gen_expr(node->rhs);
+        return;
     case ND_FNCALL:{
         int nargs = 0;
         for (Node *arg = node->args; arg; arg = arg->next) {

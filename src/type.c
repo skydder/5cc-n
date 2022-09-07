@@ -84,6 +84,9 @@ void AddType(Node *node) {
     case ND_VAR:
         node->type = node->var->type;
         return;
+    case ND_COMMA:
+        node->type = node->rhs->type;
+        return;
     case ND_ADDR:
         if (node->lhs->type->kind == TY_ARRAY)
             node->type = NewTypePTR2(node->lhs->type->base);

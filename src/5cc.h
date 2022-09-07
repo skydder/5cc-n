@@ -32,6 +32,7 @@ typedef enum {
     ND_ADDR,
     ND_DEREF,
     ND_FNCALL,
+    ND_COMMA,
 } NodeKind;
 
 typedef enum {
