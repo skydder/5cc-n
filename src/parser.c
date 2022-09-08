@@ -328,9 +328,12 @@ static Node *stmt(Token **rest, Token *tok) {
         Node *node = NewNodeKind(ND_FOR, tok);
         tok = SkipToken(tok->next, "(");
 
+        EnterScope();
         if (!ConsumeToken(&tok, tok, ";")) {
-            node->init = expr(&tok, tok);
-            tok = SkipToken(tok, ";");
+            if (IsTokenType(tok))
+                node->init = declaration(&tok, tok);
+            else
+                node->init = expr_stmt(&tok, tok);
         }
         if (!ConsumeToken(&tok, tok, ";")) {
             node->cond = expr(&tok, tok);
@@ -341,6 +344,7 @@ static Node *stmt(Token **rest, Token *tok) {
             tok = SkipToken(tok, ")");
         }
         node->then = stmt(&tok, tok);
+        LeaveScope();
         *rest = tok;
         return node;
     }

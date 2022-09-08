@@ -183,7 +183,7 @@ static void gen_stmt(Node *node) {
     case ND_FOR:{
         int c = count();
         if (node->init)
-            gen_expr(node->init);
+            gen_stmt(node->init);
         println(".L.begin.%d:", c);
         if (node->cond) {
             gen_expr(node->cond);
