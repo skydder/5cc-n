@@ -33,14 +33,16 @@ typedef enum {
     ND_DEREF,
     ND_FNCALL,
     ND_COMMA,
+    ND_DOTS,  // struct
 } NodeKind;
 
 typedef enum {
     TY_INT,
+    TY_CHAR,
     TY_PTR,
     TY_FN,
     TY_ARRAY,
-    TY_CHAR,
+    TY_STRUCT,
 } TypeKind;
 
 typedef struct Token Token;
@@ -75,6 +77,8 @@ struct Obj {
     int stack_size;
 
     char *init_data;
+
+    bool is_member;
 };
 
 struct Node {
@@ -99,6 +103,8 @@ struct Node {
     Node *body;
     char *fn_name;
     Node *args;
+
+    Obj *member;
 };
 
 struct Type {
@@ -108,11 +114,14 @@ struct Type {
     
     int array_len;
 
+    Obj *members;
+
     Token *name;
     Type *return_type;  // for func
     Type *params;
     Type *next;
 };
+
 
 Token *Tokenize(char *p);
 Obj *ParseToken(Token *tok);

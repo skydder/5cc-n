@@ -37,6 +37,7 @@ static Token *NewTokenReserved(char **start) {
         {"<", 1}, {">", 1}, {"(", 1}, {")", 1},
         {";", 1}, {"=", 1}, {"{", 1}, {"}", 1},
         {"&", 1}, {",", 1}, {"[", 1}, {"]", 1},
+        {".", 1},
         {NULL, 0},
     };
 
@@ -46,6 +47,7 @@ static Token *NewTokenReserved(char **start) {
     } keyword[] = {
         {"return", 6}, {"for", 3}, {"else", 4}, {"if", 2},
         {"sizeof", 6}, {"int", 3}, {"char", 4}, {"while", 5},
+        {"struct", 6},
         {NULL, 0},
     };
 

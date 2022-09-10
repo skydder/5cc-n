@@ -7,7 +7,8 @@
 
 //===================================================================
 static bool IsTokenEqual(Token *tok, char *op) {
-  return tok->kind == TK_RESERVED && memcmp(tok->loc, op, tok->len) == 0 && op[tok->len] == '\0';
+    return strlen(op) == tok->len && !strncmp(tok->loc, op, tok->len);
+    // return tok->kind == TK_RESERVED && memcmp(tok->loc, op, tok->len) == 0 && op[tok->len] == '\0';
 }
 
 static Token *SkipToken(Token *tok, char *s) {
@@ -80,10 +81,17 @@ static Obj *NewObj() {
     return new;
 }
 
-static Obj *NewObjVar(char *name, Type *type) {
+static Obj *NewObjMember(char *name, Type *type) {
     Obj *new = NewObj();
-    new->name = name;
+    new->is_member = true;
     new->type = type;
+    new->name = name;
+    return new;
+}
+
+static Obj *NewObjVar(char *name, Type *type) {
+    Obj *new = NewObjMember(name, type);
+    new->is_member = false;
     PushScope(name, new);
     return new;
 }
@@ -113,6 +121,14 @@ static Obj *FindObjVar(Token *tok) {
     }
 
     return NULL;
+}
+
+static Obj *FindObjMember(Type *type, Token *tok) {
+    for (Obj *mem = type->members; mem; mem = mem->next) {
+        if (strlen(mem->name) == tok->len && !strncmp(tok->loc, mem->name, tok->len))
+            return mem;
+    }
+    ErrorToken(tok, "No such member");
 }
 
 static Obj *NewObjGVarAnon(Type *type) {
@@ -172,28 +188,9 @@ static int GetTokenNum(Token *tok) {
 }
 
 static bool IsTokenType(Token *tok) {
-    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char");
+    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char") || IsTokenEqual(tok, "struct");
 }
 
-//===================================================================
-// declspec = "int"
-// params  = ?declspec declarator ("," declspec declarator)* ")" 
-// declarator = ("*")* ident type-suffix
-// type-suffix = "(" param | "[" num "]
-// declaration = declspec declarator ?("=" assign) (declarator ?("=" assign))* ";"
-// compound_stmt = stmt* "}"
-// stmt       = expr_stmt || "return" expr ";" || "if" "(" expr ")" stmt ("else" stmt)? || 
-//              "for" "(" expr? ";" expr? ";" expr ")" stmt || "while" "(" expr ")" stmt ||
-//              "{" compound_stmt ||
-// expr_stmt  = expr ";"
-// expr       = assign 
-// assign     = equality ("=" assign)?
-// equality   = relational ("==" relational | "!=" relational)*
-// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-// mul = unary ("*" unary | "/" unary)* 
-// postfix    = primary ("[" expr "]")*
-// unary   = ("+" | "-" | "&" | "*") unary | postfix
-// primary = "(" expr ")" | num | "sizeof" unary
 //===================================================================
 static Node *primary(Token **rest, Token *tok);
 static Node *postfix(Token **rest, Token *tok);
@@ -214,6 +211,8 @@ static Type *type_suffix(Token **rest, Token *tok, Type *ty);
 static Type *declarator(Token **rest, Token *tok, Type *ty);
 static Node *declaration(Token **rest, Token *tok);
 static void create_param_lvars(Type *param);
+static Type *struct_declspec(Token **rest, Token *tok);
+static void struct_members(Token **rest, Token *tok, Type *type);
 //===================================================================
 
 static Type *declspec(Token **rest, Token *tok) {
@@ -221,8 +220,48 @@ static Type *declspec(Token **rest, Token *tok) {
         *rest = SkipToken(tok, "char");
         return ty_char;
     }
-    *rest = SkipToken(tok, "int");
-    return ty_int;
+    if (IsTokenEqual(tok, "int")) {
+        *rest = SkipToken(tok, "int");
+        return ty_int;
+    }
+    if (IsTokenEqual(tok, "struct")) {
+        return struct_declspec(rest, tok->next);
+    }
+}
+
+static Type *struct_declspec(Token **rest, Token *tok) {
+    tok = SkipToken(tok, "{");
+
+    Type *type = calloc(1, sizeof(Type));
+    type->kind = TY_STRUCT;
+    struct_members(rest, tok, type);
+
+    int offset = 0;
+    for (Obj *mem = type->members; mem; mem = mem->next) {
+        mem->offset = offset;
+        offset += mem->type->size;
+    }
+    type->size = offset;
+    return type;
+}
+
+static void struct_members(Token **rest, Token *tok, Type *type) {
+    Obj head = {};
+    Obj *cur = &head;
+    while (!IsTokenEqual(tok, "}")) {
+        Type *base = declspec(&tok, tok);
+        int i = 0;
+        while (!ConsumeToken(&tok, tok, ";")) {
+            if (i++ > 0)
+                tok = SkipToken(tok, ",");
+
+        Type *ty = declarator(&tok, tok, base);
+
+        cur = cur->next = NewObjMember(GetTokenIdent(ty->name), ty);
+        }
+    }
+    *rest = tok->next;
+    type->members = head.next;
 }
 
 static Type *params(Token **rest, Token *tok, Type *ty) {
@@ -542,15 +581,25 @@ static Node *unary(Token **rest, Token *tok) {
 
 static Node *postfix(Token **rest, Token *tok) {
     Node *node = primary(&tok, tok);
-
-    while (IsTokenEqual(tok, "[")) {
-        Node *index = expr(&tok, tok->next);
-        tok = SkipToken(tok, "]");
-        node = NewNodeUnary(ND_DEREF, tok, NewNodeAdd(tok, node, index));
-    }
-
-    *rest = tok;
-    return node;
+    for (;;) {
+        if (IsTokenEqual(tok, "[")) {
+            Node *index = expr(&tok, tok->next);
+            tok = SkipToken(tok, "]");
+            node = NewNodeUnary(ND_DEREF, tok, NewNodeAdd(tok, node, index));
+            continue;
+        }
+        if (IsTokenEqual(tok, ".")) {
+            AddType(node);
+            if (node->type->kind != TY_STRUCT) ErrorToken(node->tok, "not a struct");
+            Node *lhs = node;
+            node = NewNodeUnary(ND_DOTS, tok, lhs);
+            node->member = FindObjMember(lhs->type, tok->next);
+            tok = tok->next->next;
+            continue;
+        }
+        *rest = tok;
+        return node;
+    } 
 }
 
 static Node *fncall(Token **rest, Token *tok) {

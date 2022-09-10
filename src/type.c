@@ -80,7 +80,9 @@ void AddType(Node *node) {
     case ND_FNCALL:
         node->type = ty_int;
         return;
-
+    case ND_DOTS:
+        node->type = node->member->type;
+    return;
     case ND_VAR:
         node->type = node->var->type;
         return;

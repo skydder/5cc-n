@@ -63,6 +63,10 @@ static void gen_addr(Node *node) {
     case ND_DEREF:
         gen_expr(node->lhs);
         return;
+    case ND_DOTS:
+        gen_addr(node->lhs);
+        println("\tadd $%d, %%rax", node->member->offset);
+        return;
     }
     Error("not an lvalue");
 }
@@ -96,6 +100,10 @@ static void gen_expr(Node *node) {
     case ND_COMMA:
         gen_expr(node->lhs);
         gen_expr(node->rhs);
+        return;
+    case ND_DOTS:
+        gen_addr(node);
+        load(node->type);
         return;
     case ND_FNCALL:{
         int nargs = 0;
