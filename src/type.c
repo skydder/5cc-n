@@ -4,14 +4,20 @@
 #include "5cc.h"
 
 
-Type *ty_int = &(Type){.kind = TY_INT, .size = 8};
-Type *ty_char = &(Type){.kind = TY_CHAR, .size = 1};
+Type *ty_int = &(Type){.kind = TY_INT, .size = 8, .align = 8};
+Type *ty_char = &(Type){.kind = TY_CHAR, .size = 1, .align =1};
+
+Type *NewType(TypeKind kind, int size, int align) {
+    Type *new = calloc(1, sizeof(Type));
+    new->kind = kind;
+    new->size = size;
+    new->align = align;
+    return new;
+}
 
 Type *NewTypePTR2(Type *base) {
-    Type *new = calloc(1, sizeof(Type));
-    new->kind = TY_PTR;
+    Type *new = NewType(TY_PTR, 8, 8);
     new->base = base;
-    new->size = 8;
     return new;
 }
 
@@ -23,10 +29,8 @@ Type *NewTypeFn(Type *return_type) {
 }
 
 Type *NewTypeArrayOf(Type *base, int len) {
-    Type *new = calloc(1, sizeof(Type));
-    new->kind = TY_ARRAY;
+    Type *new = NewType(TY_ARRAY, base->size * len, base->align);
     new->base = base;
-    new->size = base->size * len;
     new->array_len = len;
     return new;
 }

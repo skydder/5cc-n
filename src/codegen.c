@@ -28,7 +28,7 @@ static int count() {
     return i++;
 }
 
-static int align_to(int n, int align) {
+int align_to(int n, int align) {
     return (n + align - 1) / align * align;
 }
 
@@ -215,6 +215,7 @@ static void InitLVarOffset(Obj *func) {
     int offset = 0;
     for (Obj *lv = func->locals; lv; lv = lv->next) {
         offset += lv->type->size;
+        offset = align_to(offset, lv->type->align);
         lv->offset = -offset;
     }
     func->stack_size = align_to(offset, 16);

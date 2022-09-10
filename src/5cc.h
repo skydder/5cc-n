@@ -111,6 +111,7 @@ struct Type {
     TypeKind kind;
     Type *base;
     int size;
+    int align;
     
     int array_len;
 
@@ -145,3 +146,5 @@ void ErrorAt(char *loc, char *fmt, ...);
 void ErrorToken(Token *tok, char *fmt, ...);
 void Debug(char *fmt, ...);
 void PrintToken(Token *tok);
+
+int align_to(int n, int align);

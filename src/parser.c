@@ -235,13 +235,17 @@ static Type *struct_declspec(Token **rest, Token *tok) {
     Type *type = calloc(1, sizeof(Type));
     type->kind = TY_STRUCT;
     struct_members(rest, tok, type);
+    type->align = 1;
 
     int offset = 0;
     for (Obj *mem = type->members; mem; mem = mem->next) {
+        offset = align_to(offset, mem->type->align);
         mem->offset = offset;
         offset += mem->type->size;
+        if (type->align < mem->type->align)
+            type->align = mem->type->align;
     }
-    type->size = offset;
+    type->size = align_to(offset, type->align);
     return type;
 }
 
