@@ -33,7 +33,7 @@ typedef enum {
     ND_DEREF,
     ND_FNCALL,
     ND_COMMA,
-    ND_DOTS,  // struct
+    ND_DOTS,  // struct or union
     ND_STMT_EXPR,
 } NodeKind;
 
@@ -44,6 +44,7 @@ typedef enum {
     TY_FN,
     TY_ARRAY,
     TY_STRUCT,
+    TY_UNION
 } TypeKind;
 
 typedef struct Token Token;

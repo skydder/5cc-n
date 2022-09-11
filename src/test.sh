@@ -248,4 +248,10 @@ assert 1 'int main() { ({ 0; return 1; 2; }); return 3; }'
 assert 6 'int main() { return ({ 1; }) + ({ 2; }) + ({ 3; }); }'
 assert 3 'int main() { return ({ int x=3; x; }); }'
 
+assert 8 'int main() { union { int a; char b[6]; } x; sizeof(x); }'
+assert 3 'int main() { union { int a; char b[4]; } x; x.a = 515; x.b[0]; }'
+assert 2 'int main() { union { int a; char b[4]; } x; x.a = 515; x.b[1]; }'
+assert 0 'int main() { union { int a; char b[4]; } x; x.a = 515; x.b[2]; }'
+assert 0 'int main() { union { int a; char b[4]; } x; x.a = 515; x.b[3]; }'
+
 echo OK

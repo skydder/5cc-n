@@ -213,7 +213,7 @@ static int GetTokenNum(Token *tok) {
 }
 
 static bool IsTokenType(Token *tok) {
-    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char") || IsTokenEqual(tok, "struct");
+    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char") || IsTokenEqual(tok, "struct") || IsTokenEqual(tok, "union");
 }
 
 //===================================================================
@@ -238,6 +238,7 @@ static Node *declaration(Token **rest, Token *tok);
 static void create_param_lvars(Type *param);
 static Type *struct_declspec(Token **rest, Token *tok);
 static void struct_members(Token **rest, Token *tok, Type *type);
+static Type *union_declspec(Token **rest, Token *tok);
 //===================================================================
 
 static Type *declspec(Token **rest, Token *tok) {
@@ -252,12 +253,13 @@ static Type *declspec(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "struct")) {
         return struct_declspec(rest, tok->next);
     }
+    if (IsTokenEqual(tok, "union")) {
+        return union_declspec(rest, tok->next);
+    }
     ErrorToken(tok, "undeclared type");
 }
 
-static Type *struct_declspec(Token **rest, Token *tok) {
-    // tok = SkipToken(tok, "{");
-
+static Type *struion_declspec(Token **rest, Token *tok) {
     Token *tag = NULL;
     if (tok->kind == TK_IDENT) {
         tag = tok;
@@ -276,6 +278,15 @@ static Type *struct_declspec(Token **rest, Token *tok) {
     struct_members(rest, tok->next, type);
     type->align = 1;
 
+    if (tag)
+        PushTagScope(GetTokenIdent(tag), type);
+    return type;
+}
+
+static Type *struct_declspec(Token **rest, Token *tok) {
+    Type *type = struion_declspec(rest, tok);
+    type->kind = TY_STRUCT;
+
     int offset = 0;
     for (Obj *mem = type->members; mem; mem = mem->next) {
         offset = align_to(offset, mem->type->align);
@@ -285,8 +296,21 @@ static Type *struct_declspec(Token **rest, Token *tok) {
             type->align = mem->type->align;
     }
     type->size = align_to(offset, type->align);
-    if (tag)
-        PushTagScope(GetTokenIdent(tag), type);
+    
+    return type;
+}
+
+static Type *union_declspec(Token **rest, Token *tok) {
+    Type *type = struion_declspec(rest, tok);
+    type->kind = TY_UNION;
+    
+    for (Obj *mem = type->members; mem; mem = mem->next) {
+        if (type->align < mem->type->align)
+            type->align = mem->type->align;
+        if (type->size < mem->type->size)
+            type->size = mem->type->size;
+    }
+    type->size = align_to(type->size, type->align);
     return type;
 }
 
@@ -626,7 +650,7 @@ static Node *unary(Token **rest, Token *tok) {
 
 static Node *struct_ref(Token *tok, Node *lhs) {
     AddType(lhs);
-    if (lhs->type->kind != TY_STRUCT) ErrorToken(lhs->tok, "not a struct");
+    if (lhs->type->kind != TY_STRUCT && lhs->type->kind != TY_UNION) ErrorToken(lhs->tok, "not a struct nor an union");
     Node *node = NewNodeUnary(ND_DOTS, tok, lhs);
     node->member = FindObjMember(lhs->type, tok->next);
     return node;
