@@ -39,6 +39,7 @@ static char *NewUniqueName(void) {
 
 //===================================================================
 typedef struct VarScope VarScope;
+typedef struct TagScope TagScope;
 typedef struct Scope Scope;
 
 struct VarScope {
@@ -47,9 +48,16 @@ struct VarScope {
     char *name;
 };
 
+struct TagScope {
+    TagScope *next;
+    char *name;
+    Type *type;
+};
+
 struct Scope {
     Scope *next;
     VarScope *vars;
+    TagScope *tags;
 };
 
 static Scope *scope = &(Scope){};
@@ -71,6 +79,23 @@ static VarScope *PushScope(char *name, Obj *var) {
     scope->vars = new;
     return new;
 }
+
+static void PushTagScope(char *name, Type *type) {
+    TagScope *new = calloc(1, sizeof(TagScope));
+    new->name = name;
+    new->type = type;
+    new->next = scope->tags;
+    scope->tags = new;
+}
+
+static Type *FindTagScope(Token *tok) {
+    for (Scope *sc = scope; sc; sc = sc->next)
+        for (TagScope *tsc = sc->tags; tsc; tsc = tsc->next)
+            if (IsTokenEqual(tok, tsc->name))
+                return tsc->type;
+    return NULL;
+}
+
 
 //===================================================================
 static Obj *locals;
@@ -115,7 +140,7 @@ static Obj *NewObjGVar(char *name, Type *type) {
 static Obj *FindObjVar(Token *tok) {
     for (Scope *sc = scope; sc; sc = sc->next) {
         for (VarScope *vsc = sc->vars; vsc; vsc = vsc->next) {
-            if (strlen(vsc->name) == tok->len && !strncmp(tok->loc, vsc->name, tok->len))
+            if (IsTokenEqual(tok, vsc->name))
                 return vsc->var;
         }
     }
@@ -125,7 +150,7 @@ static Obj *FindObjVar(Token *tok) {
 
 static Obj *FindObjMember(Type *type, Token *tok) {
     for (Obj *mem = type->members; mem; mem = mem->next) {
-        if (strlen(mem->name) == tok->len && !strncmp(tok->loc, mem->name, tok->len))
+        if (IsTokenEqual(tok, mem->name))
             return mem;
     }
     ErrorToken(tok, "No such member");
@@ -230,11 +255,24 @@ static Type *declspec(Token **rest, Token *tok) {
 }
 
 static Type *struct_declspec(Token **rest, Token *tok) {
-    tok = SkipToken(tok, "{");
+    // tok = SkipToken(tok, "{");
+
+    Token *tag = NULL;
+    if (tok->kind == TK_IDENT) {
+        tag = tok;
+        tok = tok->next;
+    }
+
+    if (tag && !IsTokenEqual(tok, "{")) {
+        Type *type = FindTagScope(tag);
+        if (!type) ErrorToken(tok, "undefined struct");
+        *rest = tok;
+        return type;
+    }
 
     Type *type = calloc(1, sizeof(Type));
     type->kind = TY_STRUCT;
-    struct_members(rest, tok, type);
+    struct_members(rest, tok->next, type);
     type->align = 1;
 
     int offset = 0;
@@ -246,6 +284,8 @@ static Type *struct_declspec(Token **rest, Token *tok) {
             type->align = mem->type->align;
     }
     type->size = align_to(offset, type->align);
+    if (tag)
+        PushTagScope(GetTokenIdent(tag), type);
     return type;
 }
 
@@ -583,6 +623,14 @@ static Node *unary(Token **rest, Token *tok) {
     return postfix(rest, tok);
 }
 
+static Node *struct_ref(Token *tok, Node *lhs) {
+    AddType(lhs);
+    if (lhs->type->kind != TY_STRUCT) ErrorToken(lhs->tok, "not a struct");
+    Node *node = NewNodeUnary(ND_DOTS, tok, lhs);
+    node->member = FindObjMember(lhs->type, tok->next);
+    return node;
+}
+
 static Node *postfix(Token **rest, Token *tok) {
     Node *node = primary(&tok, tok);
     for (;;) {
@@ -593,11 +641,13 @@ static Node *postfix(Token **rest, Token *tok) {
             continue;
         }
         if (IsTokenEqual(tok, ".")) {
-            AddType(node);
-            if (node->type->kind != TY_STRUCT) ErrorToken(node->tok, "not a struct");
-            Node *lhs = node;
-            node = NewNodeUnary(ND_DOTS, tok, lhs);
-            node->member = FindObjMember(lhs->type, tok->next);
+            node = struct_ref(tok, node);
+            tok = tok->next->next;
+            continue;
+        }
+        if (IsTokenEqual(tok, "->")) {
+            node = NewNodeUnary(ND_DEREF, tok, node);
+            node = struct_ref(tok, node);
             tok = tok->next->next;
             continue;
         }
