@@ -50,6 +50,7 @@ static void store(Type *type) {
         println("\tmov %%rax, (%%rdi)");
 }
 
+static void gen_stmt(Node *node);
 static void gen_expr(Node *node);
 static void gen_addr(Node *node) {
     switch (node->kind ) {
@@ -104,6 +105,10 @@ static void gen_expr(Node *node) {
     case ND_DOTS:
         gen_addr(node);
         load(node->type);
+        return;
+    case ND_STMT_EXPR:
+        for (Node *n = node->body; n; n = n->next)
+            gen_stmt(n);
         return;
     case ND_FNCALL:{
         int nargs = 0;

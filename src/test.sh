@@ -242,4 +242,10 @@ assert 3 'int main() { struct t {int x;}; int t=1; struct t y; y.x=2; t+y.x; }'
 assert 3 'int main() { struct t {char a;} x; struct t *y = &x; x.a=3; y->a; }'
 assert 3 'int main() { struct t {char a;} x; struct t *y = &x; y->a=3; x.a; }'
 
+assert 0 'int main() { return ({ 0; }); }'
+assert 2 'int main() { return ({ 0; 1; 2; }); }'
+assert 1 'int main() { ({ 0; return 1; 2; }); return 3; }'
+assert 6 'int main() { return ({ 1; }) + ({ 2; }) + ({ 3; }); }'
+assert 3 'int main() { return ({ int x=3; x; }); }'
+
 echo OK

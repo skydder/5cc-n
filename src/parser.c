@@ -252,6 +252,7 @@ static Type *declspec(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "struct")) {
         return struct_declspec(rest, tok->next);
     }
+    ErrorToken(tok, "undeclared type");
 }
 
 static Type *struct_declspec(Token **rest, Token *tok) {
@@ -634,7 +635,7 @@ static Node *struct_ref(Token *tok, Node *lhs) {
 static Node *postfix(Token **rest, Token *tok) {
     Node *node = primary(&tok, tok);
     for (;;) {
-        if (IsTokenEqual(tok, "[")) {
+        if (IsTokenEqual(tok, "[")) { // a[b] => *(a + b)
             Node *index = expr(&tok, tok->next);
             tok = SkipToken(tok, "]");
             node = NewNodeUnary(ND_DEREF, tok, NewNodeAdd(tok, node, index));
@@ -645,7 +646,7 @@ static Node *postfix(Token **rest, Token *tok) {
             tok = tok->next->next;
             continue;
         }
-        if (IsTokenEqual(tok, "->")) {
+        if (IsTokenEqual(tok, "->")) { // a->b => (*a).b
             node = NewNodeUnary(ND_DEREF, tok, node);
             node = struct_ref(tok, node);
             tok = tok->next->next;
@@ -677,9 +678,16 @@ static Node *fncall(Token **rest, Token *tok) {
 
 static Node *primary(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "(")) {
-        Node *node = expr(&tok, tok->next);
-        *rest = SkipToken(tok, ")");
-        return node;
+        if (IsTokenEqual(tok->next, "{")) {
+            Node *node = NewNodeKind(ND_STMT_EXPR, tok);
+            node->body =  compound_stmt(&tok, tok->next->next)->body;
+            *rest = SkipToken(tok, ")");
+            return node;
+        } else {
+            Node *node = expr(&tok, tok->next);
+            *rest = SkipToken(tok, ")");
+            return node;
+        }
     }
     if (IsTokenEqual(tok, "sizeof")) {
         Node *node = unary(rest, tok->next);

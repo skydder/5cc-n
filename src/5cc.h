@@ -34,6 +34,7 @@ typedef enum {
     ND_FNCALL,
     ND_COMMA,
     ND_DOTS,  // struct
+    ND_STMT_EXPR,
 } NodeKind;
 
 typedef enum {
