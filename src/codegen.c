@@ -33,7 +33,7 @@ int align_to(int n, int align) {
 }
 
 static void load(Type *type) {
-    if (type->kind == TY_ARRAY)
+    if (type->kind == TY_ARRAY || type->kind == TY_STRUCT || type->kind == TY_UNION)
         return;
     if (type->size == 1)
         println("\tmovsbq (%%rax), %%rax");
@@ -44,6 +44,13 @@ static void load(Type *type) {
 
 static void store(Type *type) {
     pop("%rdi");
+    if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
+        for (int i = 0; i < type->size; i++) {
+            println("  mov %d(%%rax), %%r8b", i);
+            println("  mov %%r8b, %d(%%rdi)", i);
+        }
+        return;
+    }
     if (type->size == 1)
         println("\tmov %%al, (%%rdi)");
     else

@@ -254,4 +254,17 @@ assert 2 'int main() { union { int a; char b[4]; } x; x.a = 515; x.b[1]; }'
 assert 0 'int main() { union { int a; char b[4]; } x; x.a = 515; x.b[2]; }'
 assert 0 'int main() { union { int a; char b[4]; } x; x.a = 515; x.b[3]; }'
 
+assert 3 'int main() { struct {int a,b;} x,y; x.a=3; y=x; y.a; }'
+assert 7 'int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y; struct t *z=&y; *z=x; y.a; }'
+assert 7 'int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y, *p=&x, *q=&y; *q=*p; y.a; }'
+assert 5 'int main() { struct t {char a, b;} x, y; x.a=5; y=x; y.a; }'
+
+assert 3 'int main() { struct {int a,b;} x,y; x.a=3; y=x; y.a; }'
+assert 7 'int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y; struct t *z=&y; *z=x; y.a; }'
+assert 7 'int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y, *p=&x, *q=&y; *q=*p; y.a; }'
+assert 5 'int main() { struct t {char a, b;} x, y; x.a=5; y=x; y.a; }'
+
+assert 3 'int main() { union {int a,b;} x,y; x.a=3; y.a=5; y=x; y.a; }'
+assert 3 'int main() { union {struct {int a,b;} c;} x,y; x.c.b=3; y.c.b=5; y=x; y.c.b; }'
+
 echo OK
