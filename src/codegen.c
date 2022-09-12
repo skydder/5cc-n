@@ -6,6 +6,7 @@
 static int depth;
 static char *argreg64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"}; 
 static char *argreg8[] = {"%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"};
+static char *argreg32[] = {"%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"};
 static Obj *current_fn;
 
 static void comment(char *msg) {
@@ -37,6 +38,8 @@ static void load(Type *type) {
         return;
     if (type->size == 1)
         println("\tmovsbq (%%rax), %%rax");
+    else if (type->size == 4)
+        println("\tmovsxd (%%rax), %%rax");
     else
         println("\tmov (%%rax), %%rax");
     return;
@@ -46,19 +49,22 @@ static void store(Type *type) {
     pop("%rdi");
     if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
         for (int i = 0; i < type->size; i++) {
-            println("  mov %d(%%rax), %%r8b", i);
-            println("  mov %%r8b, %d(%%rdi)", i);
+            println("\tmov %d(%%rax), %%r8b", i);
+            println("\tmov %%r8b, %d(%%rdi)", i);
         }
         return;
     }
     if (type->size == 1)
         println("\tmov %%al, (%%rdi)");
+    else if (type->size == 4)
+        println("\tmov %%eax, (%%rdi)");
     else
         println("\tmov %%rax, (%%rdi)");
 }
 
 static void gen_stmt(Node *node);
 static void gen_expr(Node *node);
+
 static void gen_addr(Node *node) {
     switch (node->kind ) {
     case ND_VAR:
@@ -233,6 +239,21 @@ static void InitLVarOffset(Obj *func) {
     func->stack_size = align_to(offset, 16);
 }
 
+static void store_param(int r, int offset, int size) {
+    switch (size) {
+    case 1:
+        println("\tmov %s, %d(%%rbp)", argreg8[r], offset);
+        return;
+    case 4:
+        println("\tmov %s, %d(%%rbp)", argreg32[r], offset);
+        return;
+    case 8:
+        println("\tmov %s, %d(%%rbp)", argreg64[r], offset);
+        return;
+  }
+  Error("something is wrong");
+}
+
 static void EmitData(Obj* gvar) {
     for (Obj *var = gvar; var; var = var->next) {
         if (var->is_func) continue;
@@ -267,10 +288,7 @@ static void EmitFunc(Obj *func) {
 
         int i = 0;
         for (Obj *var = fn->params; var; var = var->next) {
-            if (var->type->size == 1)
-                println("\tmov %s, %d(%%rbp)\n", argreg8[i++], var->offset);
-            else
-                println("\tmov %s, %d(%%rbp)", argreg64[i++], var->offset);
+            store_param(i++, var->offset, var->type->size);
         }
 
         for (Node *n = fn->body; n; n = n->next) {

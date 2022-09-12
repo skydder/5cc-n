@@ -4,7 +4,7 @@
 #include "5cc.h"
 
 
-Type *ty_int = &(Type){.kind = TY_INT, .size = 8, .align = 8};
+Type *ty_int = &(Type){.kind = TY_INT, .size = 4, .align = 4};
 Type *ty_char = &(Type){.kind = TY_CHAR, .size = 1, .align =1};
 
 Type *NewType(TypeKind kind, int size, int align) {
