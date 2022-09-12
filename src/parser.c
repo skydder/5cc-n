@@ -101,22 +101,21 @@ static Type *FindTagScope(Token *tok) {
 static Obj *locals;
 static Obj *globals;
 
-static Obj *NewObj() {
+static Obj *NewObj(char *name, Type *type) {
     Obj *new = calloc(1, sizeof(Obj));
+    new->name = name;
+    new->type = type;
     return new;
 }
 
 static Obj *NewObjMember(char *name, Type *type) {
-    Obj *new = NewObj();
+    Obj *new = NewObj(name, type);
     new->is_member = true;
-    new->type = type;
-    new->name = name;
     return new;
 }
 
 static Obj *NewObjVar(char *name, Type *type) {
-    Obj *new = NewObjMember(name, type);
-    new->is_member = false;
+    Obj *new = NewObj(name, type);
     PushScope(name, new);
     return new;
 }
@@ -131,28 +130,23 @@ static Obj *NewObjLVar(char *name, Type *type) {
 
 static Obj *NewObjGVar(char *name, Type *type) {
     Obj *new = NewObjVar(name, type);
-    new->is_lvar = false;
     new->next = globals;
     globals = new;
     return new;
 }
 
 static Obj *FindObjVar(Token *tok) {
-    for (Scope *sc = scope; sc; sc = sc->next) {
-        for (VarScope *vsc = sc->vars; vsc; vsc = vsc->next) {
+    for (Scope *sc = scope; sc; sc = sc->next)
+        for (VarScope *vsc = sc->vars; vsc; vsc = vsc->next)
             if (IsTokenEqual(tok, vsc->name))
                 return vsc->var;
-        }
-    }
-
     return NULL;
 }
 
 static Obj *FindObjMember(Type *type, Token *tok) {
-    for (Obj *mem = type->members; mem; mem = mem->next) {
+    for (Obj *mem = type->members; mem; mem = mem->next)
         if (IsTokenEqual(tok, mem->name))
             return mem;
-    }
     ErrorToken(tok, "No such member");
 }
 
@@ -319,14 +313,13 @@ static void struct_members(Token **rest, Token *tok, Type *type) {
     Obj *cur = &head;
     while (!IsTokenEqual(tok, "}")) {
         Type *base = declspec(&tok, tok);
-        int i = 0;
-        while (!ConsumeToken(&tok, tok, ";")) {
-            if (i++ > 0)
+
+        for (int i = 0; !ConsumeToken(&tok, tok, ";"); i++) {
+            if (i > 0)
                 tok = SkipToken(tok, ",");
 
-        Type *ty = declarator(&tok, tok, base);
-
-        cur = cur->next = NewObjMember(GetTokenIdent(ty->name), ty);
+            Type *ty = declarator(&tok, tok, base);
+            cur = cur->next = NewObjMember(GetTokenIdent(ty->name), ty);
         }
     }
     *rest = tok->next;
@@ -381,10 +374,9 @@ static Node *declaration(Token **rest, Token *tok) {
     Type *base_type = declspec(&tok, tok);
     Node head = {};
     Node *cur = &head;
-    int i = 0;
 
-    while (!IsTokenEqual(tok, ";")) {
-        if (i++ > 0)
+    for (int i = 0; !IsTokenEqual(tok, ";"); i++) {
+        if (i > 0)
             tok = SkipToken(tok, ",");
 
         Type *ty = declarator(&tok, tok, base_type);

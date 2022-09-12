@@ -86,7 +86,7 @@ void AddType(Node *node) {
         return;
     case ND_DOTS:
         node->type = node->member->type;
-    return;
+        return;
     case ND_VAR:
         node->type = node->var->type;
         return;
