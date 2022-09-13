@@ -5,7 +5,8 @@
 
 
 Type *ty_int = &(Type){.kind = TY_INT, .size = 4, .align = 4};
-Type *ty_char = &(Type){.kind = TY_CHAR, .size = 1, .align =1};
+Type *ty_char = &(Type){.kind = TY_CHAR, .size = 1, .align = 1};
+Type *ty_long = &(Type){.kind = TY_LONG, .size = 8, .align = 8};
 
 Type *NewType(TypeKind kind, int size, int align) {
     Type *new = calloc(1, sizeof(Type));
@@ -82,7 +83,7 @@ void AddType(Node *node) {
     case ND_LE:
     case ND_NUM:
     case ND_FNCALL:
-        node->type = ty_int;
+        node->type = ty_long;
         return;
     case ND_DOTS:
         node->type = node->member->type;

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum {
     TK_RESERVED,
@@ -40,6 +41,7 @@ typedef enum {
 typedef enum {
     TY_INT,
     TY_CHAR,
+    TY_LONG,
     TY_PTR,
     TY_FN,
     TY_ARRAY,
@@ -57,8 +59,8 @@ struct Token {
     Token *next;
     char *loc;
     int len;
-    
-    int val;
+
+    int64_t val;
     char *string;
 };
 
@@ -138,6 +140,7 @@ Type *NewTypeArrayOf(Type *base, int len);
 Type *CopyType(Type *ty);
 extern Type *ty_int;
 extern Type *ty_char;
+extern Type *ty_long;
 
 extern char *UserInput;
 extern char *FileName;

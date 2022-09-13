@@ -175,7 +175,7 @@ static Node *NewNodeBinary(NodeKind kind, Token *tok, Node *lhs, Node *rhs) {
     return new;
 }
 
-static Node *NewNodeNum(Token *tok, int val) {
+static Node *NewNodeNum(Token *tok, int64_t val) {
     Node *new = NewNodeKind(ND_NUM, tok);
     new->val = val;
     return new;
@@ -207,7 +207,8 @@ static int GetTokenNum(Token *tok) {
 }
 
 static bool IsTokenType(Token *tok) {
-    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char") || IsTokenEqual(tok, "struct") || IsTokenEqual(tok, "union");
+    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char") || IsTokenEqual(tok, "long")
+    || IsTokenEqual(tok, "struct") || IsTokenEqual(tok, "union");
 }
 
 //===================================================================
@@ -243,6 +244,10 @@ static Type *declspec(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "int")) {
         *rest = SkipToken(tok, "int");
         return ty_int;
+    }
+    if (IsTokenEqual(tok, "long")) {
+        *rest = SkipToken(tok, "long");
+        return ty_long;
     }
     if (IsTokenEqual(tok, "struct")) {
         return struct_declspec(rest, tok->next);

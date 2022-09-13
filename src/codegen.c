@@ -88,7 +88,7 @@ static void gen_addr(Node *node) {
 static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM:
-        println("\tmov $%d, %%rax", node->val);
+        println("\tmov $%ld, %%rax", node->val);
         return;
     case ND_NEG:
         gen_expr(node->lhs);
