@@ -207,8 +207,8 @@ static int GetTokenNum(Token *tok) {
 }
 
 static bool IsTokenType(Token *tok) {
-    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char") || IsTokenEqual(tok, "long")
-    || IsTokenEqual(tok, "struct") || IsTokenEqual(tok, "union");
+    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char") || IsTokenEqual(tok, "long") ||
+    IsTokenEqual(tok, "short") || IsTokenEqual(tok, "struct") || IsTokenEqual(tok, "union");
 }
 
 //===================================================================
@@ -247,6 +247,10 @@ static Type *declspec(Token **rest, Token *tok) {
     }
     if (IsTokenEqual(tok, "long")) {
         *rest = SkipToken(tok, "long");
+        return ty_long;
+    }
+    if (IsTokenEqual(tok, "short")) {
+        *rest = SkipToken(tok, "short");
         return ty_long;
     }
     if (IsTokenEqual(tok, "struct")) {

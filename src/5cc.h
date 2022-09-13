@@ -42,6 +42,7 @@ typedef enum {
     TY_INT,
     TY_CHAR,
     TY_LONG,
+    TY_SHORT,
     TY_PTR,
     TY_FN,
     TY_ARRAY,
@@ -141,6 +142,7 @@ Type *CopyType(Type *ty);
 extern Type *ty_int;
 extern Type *ty_char;
 extern Type *ty_long;
+extern Type *ty_short;
 
 extern char *UserInput;
 extern char *FileName;

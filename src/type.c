@@ -7,6 +7,7 @@
 Type *ty_int = &(Type){.kind = TY_INT, .size = 4, .align = 4};
 Type *ty_char = &(Type){.kind = TY_CHAR, .size = 1, .align = 1};
 Type *ty_long = &(Type){.kind = TY_LONG, .size = 8, .align = 8};
+Type *ty_short = &(Type){.kind = TY_SHORT, .size = 2, .align = 2};
 
 Type *NewType(TypeKind kind, int size, int align) {
     Type *new = calloc(1, sizeof(Type));
@@ -37,7 +38,7 @@ Type *NewTypeArrayOf(Type *base, int len) {
 }
 
 bool IsTypeInteger(Type *ty) {
-    return ty->kind == TY_INT || ty->kind == TY_CHAR;
+    return ty->kind == TY_INT || ty->kind == TY_CHAR || ty->kind == TY_LONG || ty->kind == TY_SHORT;
 }
 
 Type *CopyType(Type *ty) {

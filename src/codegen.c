@@ -4,9 +4,11 @@
 #include "5cc.h"
 
 static int depth;
-static char *argreg64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"}; 
+
 static char *argreg8[] = {"%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"};
+static char *argreg16[] = {"%di", "%si", "%dx", "%cx", "%r8w", "%r9w"};
 static char *argreg32[] = {"%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"};
+static char *argreg64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
 static Obj *current_fn;
 
 static void comment(char *msg) {
@@ -38,6 +40,8 @@ static void load(Type *type) {
         return;
     if (type->size == 1)
         println("\tmovsbq (%%rax), %%rax");
+    else if (type->size == 2)
+        println("\tmovswq (%%rax), %%rax");
     else if (type->size == 4)
         println("\tmovsxd (%%rax), %%rax");
     else
@@ -56,6 +60,8 @@ static void store(Type *type) {
     }
     if (type->size == 1)
         println("\tmov %%al, (%%rdi)");
+    else if (type->size == 2)
+        println("\tmov %%ax, (%%rdi)");
     else if (type->size == 4)
         println("\tmov %%eax, (%%rdi)");
     else
@@ -243,6 +249,9 @@ static void store_param(int r, int offset, int size) {
     switch (size) {
     case 1:
         println("\tmov %s, %d(%%rbp)", argreg8[r], offset);
+        return;
+    case 2:
+        println("\tmov %s, %d(%%rbp)", argreg16[r], offset);
         return;
     case 4:
         println("\tmov %s, %d(%%rbp)", argreg32[r], offset);
