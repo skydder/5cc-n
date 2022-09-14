@@ -370,6 +370,15 @@ static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
 static Type *declarator(Token **rest, Token *tok, Type *ty) {
     while (ConsumeToken(&tok, tok, "*"))
         ty = NewTypePTR2(ty);
+
+     if (IsTokenEqual(tok, "(")) {
+        Token *start = tok;
+        Type dummy = {};
+        declarator(&tok, start->next, &dummy);
+        tok = SkipToken(tok, ")");
+        ty = type_suffix(rest, tok, ty);
+        return declarator(&tok, start->next, ty);
+    }
     
     if (tok->kind != TK_IDENT)
         ErrorToken(tok, "expected a variable name");
