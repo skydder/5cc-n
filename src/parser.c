@@ -760,6 +760,10 @@ static Token *Function(Token *tok, Type *base) {
     
     Obj *fn = NewObjGVar(GetTokenIdent(ty->name), ty);
     fn->is_func = true;
+    fn->is_def = !ConsumeToken(&tok, tok, ";");
+
+    if (!fn->is_def)
+        return tok;
 
     locals = NULL;
     EnterScope();

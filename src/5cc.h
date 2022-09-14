@@ -76,6 +76,7 @@ struct Obj {
     
     // for Fn
     bool is_func;
+    bool is_def;
     Obj *locals;
     Obj *params;
     Node *body;

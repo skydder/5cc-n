@@ -282,7 +282,7 @@ static void EmitData(Obj* gvar) {
 
 static void EmitFunc(Obj *func) {
     for (Obj *fn = func; fn; fn = fn->next) {
-        if (!fn->is_func) continue;
+        if (!fn->is_func || !fn->is_def) continue;
         assert(fn->is_func);
         InitLVarOffset(fn);
         current_fn = fn;
