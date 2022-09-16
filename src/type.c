@@ -8,6 +8,7 @@ Type *ty_int = &(Type){.kind = TY_INT, .size = 4, .align = 4};
 Type *ty_char = &(Type){.kind = TY_CHAR, .size = 1, .align = 1};
 Type *ty_long = &(Type){.kind = TY_LONG, .size = 8, .align = 8};
 Type *ty_short = &(Type){.kind = TY_SHORT, .size = 2, .align = 2};
+Type *ty_void = &(Type){.kind = TY_VOID, .size = 1, .align = 1};
 
 Type *NewType(TypeKind kind, int size, int align) {
     Type *new = calloc(1, sizeof(Type));
@@ -104,6 +105,8 @@ void AddType(Node *node) {
     case ND_DEREF:
         if (!node->lhs->type->base)
             ErrorToken(node->tok, "invalid pointer dereference");
+        if (node->lhs->type->base->kind == TY_VOID)
+            ErrorToken(node->tok, "dereferencing a void pointer");
         node->type = node->lhs->type->base;
         return;
 

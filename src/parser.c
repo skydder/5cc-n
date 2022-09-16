@@ -207,8 +207,11 @@ static int GetTokenNum(Token *tok) {
 }
 
 static bool IsTokenType(Token *tok) {
-    return IsTokenEqual(tok, "int") || IsTokenEqual(tok, "char") || IsTokenEqual(tok, "long") ||
-    IsTokenEqual(tok, "short") || IsTokenEqual(tok, "struct") || IsTokenEqual(tok, "union");
+    char *TY[] = {"int", "char", "long", "short", "struct", "union", "void", NULL};
+    for (int i = 0; TY[i]; i++)
+        if (IsTokenEqual(tok, TY[i]))
+            return true;
+    return false;
 }
 
 //===================================================================
@@ -251,7 +254,11 @@ static Type *declspec(Token **rest, Token *tok) {
     }
     if (IsTokenEqual(tok, "short")) {
         *rest = SkipToken(tok, "short");
-        return ty_long;
+        return ty_short;
+    }
+    if (IsTokenEqual(tok, "void")) {
+        *rest = SkipToken(tok, "void");
+        return ty_void;
     }
     if (IsTokenEqual(tok, "struct")) {
         return struct_declspec(rest, tok->next);
@@ -398,6 +405,7 @@ static Node *declaration(Token **rest, Token *tok) {
             tok = SkipToken(tok, ",");
 
         Type *ty = declarator(&tok, tok, base_type);
+        if (ty->kind == TY_VOID) ErrorToken(tok, "variable declared void");
         Obj *var = NewObjLVar(GetTokenIdent(ty->name), ty);
 
         if (!IsTokenEqual(tok, "="))

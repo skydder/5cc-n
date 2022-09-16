@@ -48,6 +48,7 @@ static Token *NewTokenReserved(char **start) {
         {"return", 6}, {"for", 3}, {"else", 4}, {"if", 2},
         {"sizeof", 6}, {"int", 3}, {"char", 4}, {"while", 5},
         {"struct", 6}, {"union", 5}, {"long", 4}, {"short", 5},
+        {"void", 4},
         {NULL, 0},
     };
 
