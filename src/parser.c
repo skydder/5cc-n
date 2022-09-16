@@ -240,33 +240,57 @@ static Type *union_declspec(Token **rest, Token *tok);
 //===================================================================
 
 static Type *declspec(Token **rest, Token *tok) {
-    if (IsTokenEqual(tok, "char")) {
-        *rest = SkipToken(tok, "char");
-        return ty_char;
+    enum {
+        VOID  = 1 << 0,
+        CHAR  = 1 << 2,
+        SHORT = 1 << 4,
+        INT   = 1 << 6,
+        LONG  = 1 << 8,
+        OTHER = 1 << 10,
+    };
+    Type *ty;
+    int counter = 0;
+    while (IsTokenType(tok)) {
+        if (IsTokenEqual(tok, "struct") || IsTokenEqual(tok, "union")) {
+            if (IsTokenEqual(tok, "struct")) ty = struct_declspec(&tok, tok->next);
+            else if (IsTokenEqual(tok, "union")) ty = union_declspec(&tok, tok->next);
+            counter += OTHER;
+            continue;
+        }
+
+        if (IsTokenEqual(tok, "int")) counter += INT;
+        else if (IsTokenEqual(tok, "char")) counter += CHAR;
+        else if (IsTokenEqual(tok, "long")) counter += LONG;
+        else if (IsTokenEqual(tok, "short")) counter += SHORT;
+        else if (IsTokenEqual(tok, "void")) counter += VOID;
+
+        switch (counter) {
+        case VOID:
+            ty = ty_void;
+            break;
+        case CHAR:
+            ty = ty_char;
+            break;
+        case SHORT:
+        case SHORT + INT:
+            ty = ty_short;
+            break;
+        case INT:
+            ty = ty_int;
+            break;
+        case LONG:
+        case LONG + INT:
+        case LONG + LONG:
+        case LONG + LONG + INT:
+            ty = ty_long;
+            break;
+        default:
+            ErrorToken(tok, "invalid type");
+        }
+        tok = tok->next;
     }
-    if (IsTokenEqual(tok, "int")) {
-        *rest = SkipToken(tok, "int");
-        return ty_int;
-    }
-    if (IsTokenEqual(tok, "long")) {
-        *rest = SkipToken(tok, "long");
-        return ty_long;
-    }
-    if (IsTokenEqual(tok, "short")) {
-        *rest = SkipToken(tok, "short");
-        return ty_short;
-    }
-    if (IsTokenEqual(tok, "void")) {
-        *rest = SkipToken(tok, "void");
-        return ty_void;
-    }
-    if (IsTokenEqual(tok, "struct")) {
-        return struct_declspec(rest, tok->next);
-    }
-    if (IsTokenEqual(tok, "union")) {
-        return union_declspec(rest, tok->next);
-    }
-    ErrorToken(tok, "undeclared type");
+    *rest = tok;
+    return ty;
 }
 
 static Type *struion_declspec(Token **rest, Token *tok) {
