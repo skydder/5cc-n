@@ -46,6 +46,7 @@ struct VarScope {
     VarScope *next;
     Obj *var;
     char *name;
+    Type *type_def;
 };
 
 struct TagScope {
@@ -60,6 +61,10 @@ struct Scope {
     TagScope *tags;
 };
 
+typedef struct {
+    bool is_typedef;
+} VarAttr;
+
 static Scope *scope = &(Scope){};
 static void EnterScope() {
     Scope *new = calloc(1, sizeof(Scope));
@@ -71,10 +76,9 @@ static void LeaveScope() {
     scope = scope->next;
 }
 
-static VarScope *PushScope(char *name, Obj *var) {
+static VarScope *PushScope(char *name) {
     VarScope *new = calloc(1, sizeof(VarScope));
     new->name = name;
-    new->var = var;
     new->next = scope->vars;
     scope->vars = new;
     return new;
@@ -96,7 +100,22 @@ static Type *FindTagScope(Token *tok) {
     return NULL;
 }
 
+static VarScope *FindObjVar(Token *tok) {
+    for (Scope *sc = scope; sc; sc = sc->next)
+        for (VarScope *vsc = sc->vars; vsc; vsc = vsc->next)
+            if (IsTokenEqual(tok, vsc->name))
+                return vsc;
+    return NULL;
+}
 
+static Type *FindTypedef(Token *tok) {
+    if (tok->kind == TK_IDENT) {
+        VarScope *sc = FindObjVar(tok);
+        if (sc)
+            return sc->type_def;
+    }
+    return NULL;
+}
 //===================================================================
 static Obj *locals;
 static Obj *globals;
@@ -116,7 +135,7 @@ static Obj *NewObjMember(char *name, Type *type) {
 
 static Obj *NewObjVar(char *name, Type *type) {
     Obj *new = NewObj(name, type);
-    PushScope(name, new);
+    PushScope(name)->var = new;
     return new;
 }
 
@@ -133,14 +152,6 @@ static Obj *NewObjGVar(char *name, Type *type) {
     new->next = globals;
     globals = new;
     return new;
-}
-
-static Obj *FindObjVar(Token *tok) {
-    for (Scope *sc = scope; sc; sc = sc->next)
-        for (VarScope *vsc = sc->vars; vsc; vsc = vsc->next)
-            if (IsTokenEqual(tok, vsc->name))
-                return vsc->var;
-    return NULL;
 }
 
 static Obj *FindObjMember(Type *type, Token *tok) {
@@ -207,11 +218,11 @@ static int GetTokenNum(Token *tok) {
 }
 
 static bool IsTokenType(Token *tok) {
-    char *TY[] = {"int", "char", "long", "short", "struct", "union", "void", NULL};
+    char *TY[] = {"int", "char", "long", "short", "struct", "union", "void", "typedef", NULL};
     for (int i = 0; TY[i]; i++)
         if (IsTokenEqual(tok, TY[i]))
             return true;
-    return false;
+    return FindTypedef(tok);
 }
 
 //===================================================================
@@ -229,17 +240,17 @@ static Node *compound_stmt(Token **rest, Token *tok);
 static Node *stmt(Token **rest, Token *tok);
 
 static Type *params(Token **rest, Token *tok, Type *ty);
-static Type *declspec(Token **rest, Token *tok);
+static Type *declspec(Token **rest, Token *tok, VarAttr *attr);
 static Type *type_suffix(Token **rest, Token *tok, Type *ty);
 static Type *declarator(Token **rest, Token *tok, Type *ty);
-static Node *declaration(Token **rest, Token *tok);
+static Node *declaration(Token **rest, Token *tok, Type *base);
 static void create_param_lvars(Type *param);
 static Type *struct_declspec(Token **rest, Token *tok);
 static void struct_members(Token **rest, Token *tok, Type *type);
 static Type *union_declspec(Token **rest, Token *tok);
 //===================================================================
 
-static Type *declspec(Token **rest, Token *tok) {
+static Type *declspec(Token **rest, Token *tok, VarAttr *attr) {
     enum {
         VOID  = 1 << 0,
         CHAR  = 1 << 2,
@@ -251,9 +262,23 @@ static Type *declspec(Token **rest, Token *tok) {
     Type *ty;
     int counter = 0;
     while (IsTokenType(tok)) {
-        if (IsTokenEqual(tok, "struct") || IsTokenEqual(tok, "union")) {
+        if (IsTokenEqual(tok, "typedef")) {
+            if (!attr)
+                ErrorToken(tok, "storage class specifier is not allowed in this context");
+            attr->is_typedef = true;
+            tok = tok->next;
+            continue;
+        }
+        Type *ty2 = FindTypedef(tok);
+        if (IsTokenEqual(tok, "struct") || IsTokenEqual(tok, "union") || ty2) {
+            if (counter)
+                break;
             if (IsTokenEqual(tok, "struct")) ty = struct_declspec(&tok, tok->next);
             else if (IsTokenEqual(tok, "union")) ty = union_declspec(&tok, tok->next);
+            else {
+                ty = ty2;
+                tok = tok->next;
+            }
             counter += OTHER;
             continue;
         }
@@ -352,7 +377,7 @@ static void struct_members(Token **rest, Token *tok, Type *type) {
     Obj head = {};
     Obj *cur = &head;
     while (!IsTokenEqual(tok, "}")) {
-        Type *base = declspec(&tok, tok);
+        Type *base = declspec(&tok, tok, NULL);
 
         for (int i = 0; !ConsumeToken(&tok, tok, ";"); i++) {
             if (i > 0)
@@ -373,7 +398,7 @@ static Type *params(Token **rest, Token *tok, Type *ty) {
     while (!IsTokenEqual(tok, ")")) {
         if (cur != &head)
             tok = SkipToken(tok, ",");
-        Type *basety = declspec(&tok, tok);
+        Type *basety = declspec(&tok, tok, NULL);
         Type *ty = declarator(&tok, tok, basety);
         cur = cur->next = CopyType(ty);
     }
@@ -419,8 +444,7 @@ static Type *declarator(Token **rest, Token *tok, Type *ty) {
     return ty;
 }
 
-static Node *declaration(Token **rest, Token *tok) {
-    Type *base_type = declspec(&tok, tok);
+static Node *declaration(Token **rest, Token *tok, Type *base_type) {
     Node head = {};
     Node *cur = &head;
 
@@ -454,6 +478,16 @@ static void create_param_lvars(Type *param) {
     }
 }
 
+static void parse_typedef(Token **rest, Token *tok, Type *base) {
+    for (int i = 0; !ConsumeToken(&tok, tok, ";"); i++) {
+        if (i > 0)
+            tok = SkipToken(tok, ",");
+        Type *ty = declarator(&tok, tok, base);
+        PushScope(GetTokenIdent(ty->name))->type_def = ty;
+    }
+    *rest = tok;
+}
+
 static Node *stmt(Token **rest, Token *tok) {
     if (IsTokenEqual(tok, "return")) {
         Node *node = NewNodeUnary(ND_RETURN, tok, expr(&tok, tok->next));
@@ -480,9 +514,10 @@ static Node *stmt(Token **rest, Token *tok) {
 
         EnterScope();
         if (!ConsumeToken(&tok, tok, ";")) {
-            if (IsTokenType(tok))
-                node->init = declaration(&tok, tok);
-            else
+            if (IsTokenType(tok)) {
+                Type *base = declspec(&tok, tok, NULL);
+                node->init = declaration(&tok, tok, base);
+            } else
                 node->init = expr_stmt(&tok, tok);
         }
         if (!ConsumeToken(&tok, tok, ";")) {
@@ -515,10 +550,19 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     Node *cur = &head;
     EnterScope();
     while (!IsTokenEqual(tok, "}")) {
-        if (IsTokenType(tok))
-            cur = cur->next = declaration(&tok, tok);
-        else
+        if (IsTokenType(tok)) {
+            VarAttr attr = {};
+            Type *base = declspec(&tok, tok, &attr);
+
+            if (attr.is_typedef) {
+                parse_typedef(&tok, tok, base);
+                continue;
+            }
+
+            cur = cur->next = declaration(&tok, tok, base);
+        } else {
             cur = cur->next = stmt(&tok, tok);
+        }
         AddType(cur);
     }
 
@@ -765,11 +809,11 @@ static Node *primary(Token **rest, Token *tok) {
         if (IsTokenEqual(tok->next, "(")) {
             return fncall(rest, tok);
         } else {
-            Obj *var = FindObjVar(tok);
-            if (!var)
+            VarScope *sc = FindObjVar(tok);
+            if (!sc || !sc->var)
                 ErrorToken(tok, "undeclared valuable");
             *rest = tok->next;
-            return NewNodeVar(tok, var);
+            return NewNodeVar(tok, sc->var);
         }
     }
 
@@ -832,7 +876,13 @@ Obj *ParseToken(Token *tok) {
     globals = NULL;
 
     while (!IsTokenAtEof(tok)) {
-        Type *base = declspec(&tok, tok);
+        VarAttr attr = {};
+        Type *base = declspec(&tok, tok, &attr);
+
+        if (attr.is_typedef) {
+            parse_typedef(&tok, tok, base);
+            continue;
+        }
         if (IsFunc(tok)) {
             tok = Function(tok, base);
             continue;

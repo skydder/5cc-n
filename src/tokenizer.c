@@ -45,10 +45,10 @@ static Token *NewTokenReserved(char **start) {
         char *word;
         int len;
     } keyword[] = {
-        {"return", 6}, {"for", 3}, {"else", 4}, {"if", 2},
-        {"sizeof", 6}, {"int", 3}, {"char", 4}, {"while", 5},
-        {"struct", 6}, {"union", 5}, {"long", 4}, {"short", 5},
-        {"void", 4},
+        {"return", 6}, {"while", 5}, {"else", 4}, {"for", 3},
+        {"sizeof", 6}, {"short", 5}, {"char", 4}, {"int", 3},
+        {"struct", 6}, {"union", 5}, {"long", 4}, {"if", 2},
+        {"typedef", 7}, {"void", 4},
         {NULL, 0},
     };
 
