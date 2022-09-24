@@ -5,6 +5,7 @@
 
 #include "5cc.h"
 
+
 //===================================================================
 static bool IsTokenEqual(Token *tok, char *op) {
     return strlen(op) == tok->len && !strncmp(tok->loc, op, tok->len);
@@ -37,6 +38,18 @@ static char *NewUniqueName(void) {
     return name;
 }
 
+static char *GetTokenIdent(Token *tok) {
+    if (tok->kind != TK_IDENT)
+        ErrorToken(tok, "This is not ident");
+    return strndup(tok->loc, tok->len);
+}
+
+static int GetTokenNum(Token *tok) {
+    if (tok->kind != TK_NUM)
+        ErrorToken(tok, "This is not number");
+    return tok->val;
+}
+
 //===================================================================
 typedef struct VarScope VarScope;
 typedef struct TagScope TagScope;
@@ -66,6 +79,7 @@ typedef struct {
 } VarAttr;
 
 static Scope *scope = &(Scope){};
+
 static void EnterScope() {
     Scope *new = calloc(1, sizeof(Scope));
     new->next = scope;
@@ -100,7 +114,7 @@ static Type *FindTagScope(Token *tok) {
     return NULL;
 }
 
-static VarScope *FindObjVar(Token *tok) {
+static VarScope *FindVarScope(Token *tok) {
     for (Scope *sc = scope; sc; sc = sc->next)
         for (VarScope *vsc = sc->vars; vsc; vsc = vsc->next)
             if (IsTokenEqual(tok, vsc->name))
@@ -110,12 +124,21 @@ static VarScope *FindObjVar(Token *tok) {
 
 static Type *FindTypedef(Token *tok) {
     if (tok->kind == TK_IDENT) {
-        VarScope *sc = FindObjVar(tok);
+        VarScope *sc = FindVarScope(tok);
         if (sc)
             return sc->type_def;
     }
     return NULL;
 }
+
+static bool IsTokenType(Token *tok) {
+    char *TY[] = {"int", "char", "long", "short", "struct", "union", "void", "typedef", NULL};
+    for (int i = 0; TY[i]; i++)
+        if (IsTokenEqual(tok, TY[i]))
+            return true;
+    return FindTypedef(tok);
+}
+
 //===================================================================
 static Obj *locals;
 static Obj *globals;
@@ -205,26 +228,6 @@ static Node *NewNodeVar(Token *tok, Obj *var) {
     return new;
 }
 
-static char *GetTokenIdent(Token *tok) {
-    if (tok->kind != TK_IDENT)
-        ErrorToken(tok, "This is not ident");
-    return strndup(tok->loc, tok->len);
-}
-
-static int GetTokenNum(Token *tok) {
-    if (tok->kind != TK_NUM)
-        ErrorToken(tok, "This is not number");
-    return tok->val;
-}
-
-static bool IsTokenType(Token *tok) {
-    char *TY[] = {"int", "char", "long", "short", "struct", "union", "void", "typedef", NULL};
-    for (int i = 0; TY[i]; i++)
-        if (IsTokenEqual(tok, TY[i]))
-            return true;
-    return FindTypedef(tok);
-}
-
 //===================================================================
 static Node *primary(Token **rest, Token *tok);
 static Node *postfix(Token **rest, Token *tok);
@@ -248,6 +251,7 @@ static void create_param_lvars(Type *param);
 static Type *struct_declspec(Token **rest, Token *tok);
 static void struct_members(Token **rest, Token *tok, Type *type);
 static Type *union_declspec(Token **rest, Token *tok);
+static void parse_typedef(Token **rest, Token *tok, Type *base);
 //===================================================================
 
 static Type *declspec(Token **rest, Token *tok, VarAttr *attr) {
@@ -259,8 +263,10 @@ static Type *declspec(Token **rest, Token *tok, VarAttr *attr) {
         LONG  = 1 << 8,
         OTHER = 1 << 10,
     };
-    Type *ty;
+    
+    Type *ty = ty_int;
     int counter = 0;
+
     while (IsTokenType(tok)) {
         if (IsTokenEqual(tok, "typedef")) {
             if (!attr)
@@ -439,8 +445,11 @@ static Type *declarator(Token **rest, Token *tok, Type *ty) {
     if (tok->kind != TK_IDENT)
         ErrorToken(tok, "expected a variable name");
 
+    
+
     ty = type_suffix(rest, tok->next, ty);
     ty->name = tok;
+
     return ty;
 }
 
@@ -809,7 +818,7 @@ static Node *primary(Token **rest, Token *tok) {
         if (IsTokenEqual(tok->next, "(")) {
             return fncall(rest, tok);
         } else {
-            VarScope *sc = FindObjVar(tok);
+            VarScope *sc = FindVarScope(tok);
             if (!sc || !sc->var)
                 ErrorToken(tok, "undeclared valuable");
             *rest = tok->next;

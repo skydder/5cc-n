@@ -6,6 +6,10 @@ src/idea
 .gdb_history
 peda-session-tmp.txt
 src/peda-session-5cc.txt
-src/test
+src/test.*
+src/test/*.s
+src/test/*.exe
+src/test.sh
+test/*.o
 note.md
 blank

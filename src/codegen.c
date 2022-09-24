@@ -9,7 +9,18 @@ static char *argreg8[] = {"%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"};
 static char *argreg16[] = {"%di", "%si", "%dx", "%cx", "%r8w", "%r9w"};
 static char *argreg32[] = {"%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"};
 static char *argreg64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+
 static Obj *current_fn;
+static FILE *output_file;
+
+static void println(char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(output_file, fmt, ap);
+    va_end(ap);
+    fprintf(output_file, "\n");
+    return ;
+}
 
 static void comment(char *msg) {
     putchar('#');
@@ -72,7 +83,7 @@ static void gen_stmt(Node *node);
 static void gen_expr(Node *node);
 
 static void gen_addr(Node *node) {
-    switch (node->kind ) {
+    switch (node->kind) {
     case ND_VAR:
         if (node->var->is_lvar) {
             println("\tlea %d(%%rbp), %%rax", node->var->offset);
@@ -86,6 +97,10 @@ static void gen_addr(Node *node) {
     case ND_DOTS:
         gen_addr(node->lhs);
         println("\tadd $%d, %%rax", node->member->offset);
+        return;
+    case ND_COMMA:
+        gen_expr(node->lhs);
+        gen_addr(node->rhs);
         return;
     }
     Error("not an lvalue");
@@ -271,9 +286,9 @@ static void EmitData(Obj* gvar) {
         println("\t.global %s", var->name);
         println("%s:", var->name);
         
-        if (gvar->init_data) {
-            for (int i = 0; i < gvar->type->array_len; i++)
-                println("\t.byte %d", gvar->init_data[i]);
+        if (var->init_data) {
+            for (int i = 0; i < var->type->array_len; i++)
+                println("\t.byte %d", var->init_data[i]);
         } else {
             println("\t.zero %d", var->type->size);
         }
@@ -311,8 +326,9 @@ static void EmitFunc(Obj *func) {
     }
 }
 
-void GenCode(Obj *prog) {
+void GenCode(Obj *prog, FILE *out) {
+    output_file = out;
+
     EmitData(prog);
     EmitFunc(prog);
-
 }

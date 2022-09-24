@@ -133,7 +133,7 @@ struct Type {
 
 Token *Tokenize(char *p);
 Obj *ParseToken(Token *tok);
-void GenCode(Obj *func);
+void GenCode(Obj *prog, FILE *out);
 
 void AddType(Node *node);
 bool IsTypeInteger(Type *ty);
@@ -148,13 +148,14 @@ extern Type *ty_short;
 extern Type *ty_void;
 
 extern char *UserInput;
-extern char *FileName;
+extern char *InputPath;
 bool IsStrSame(char *A, char *B);
-void println(char *fmt, ...);
+// void println(char *fmt, ...);
 void Error(char *fmt, ...);
 void ErrorAt(char *loc, char *fmt, ...);
 void ErrorToken(Token *tok, char *fmt, ...);
 void Debug(char *fmt, ...);
 void PrintToken(Token *tok);
+void PrintObjFn(Obj *obj);
 
 int align_to(int n, int align);
