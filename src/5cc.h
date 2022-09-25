@@ -1,3 +1,6 @@
+#ifndef _5cc_
+#define _5cc_
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -159,3 +162,5 @@ void PrintToken(Token *tok);
 void PrintObjFn(Obj *obj);
 
 int align_to(int n, int align);
+
+#endif
