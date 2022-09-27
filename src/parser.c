@@ -263,7 +263,7 @@ static Type *declspec(Token **rest, Token *tok, VarAttr *attr) {
         LONG  = 1 << 8,
         OTHER = 1 << 10,
     };
-    
+
     Type *ty = ty_int;
     int counter = 0;
 
@@ -495,6 +495,27 @@ static void parse_typedef(Token **rest, Token *tok, Type *base) {
         PushScope(GetTokenIdent(ty->name))->type_def = ty;
     }
     *rest = tok;
+}
+
+static Type *abstract_declarator(Token **rest, Token *tok, Type *ty) {
+    while (ConsumeToken(&tok, tok, "*"))
+        ty = NewTypePTR2(ty);
+
+     if (IsTokenEqual(tok, "(")) {
+        Token *start = tok;
+        Type dummy = {};
+        abstract_declarator(&tok, start->next, &dummy);
+        tok = SkipToken(tok, ")");
+        ty = type_suffix(rest, tok, ty);
+        return abstract_declarator(&tok, start->next, ty);
+    }
+    
+    return type_suffix(rest, tok, ty);
+}
+
+static Type *type_name(Token **rest, Token *tok) {
+    Type *ty = declspec(&tok, tok, NULL);
+    return abstract_declarator(rest, tok, ty);
 }
 
 static Node *stmt(Token **rest, Token *tok) {
@@ -809,6 +830,13 @@ static Node *primary(Token **rest, Token *tok) {
         }
     }
     if (IsTokenEqual(tok, "sizeof")) {
+        Token *start = tok;
+        if (IsTokenEqual(tok->next, "(") && IsTokenType(tok->next->next)) {
+            Type *base = type_name(&tok, tok->next->next);
+            *rest = SkipToken(tok, ")");
+            
+            return NewNodeNum(start, base->size);
+        }
         Node *node = unary(rest, tok->next);
         AddType(node);
         return NewNodeNum(tok, node->type->size);

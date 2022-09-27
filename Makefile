@@ -1,19 +1,16 @@
-FILE_NAMES=main.c tokenizer.c parser.c codegen.c util.c type.c
-SRCS=$(wildcard $(FILE_NAMES:%.c=src/%.c))
+SRCS=$(wildcard src/*.c)
 OBJS=$(SRCS:%.c=target/%.o)
 
 TEST_SRCS=$(wildcard test/*.c)
 TESTS=$(TEST_SRCS:%.c=target/%.exe)
 
-# $(OBJS):src/5cc.h $(SRCS)
-# 	$(CC) -o $(OBJS) $(SRCS)
+CC=gcc
 
-
-5cc:objs
+5cc:$(OBJS)
 	$(CC) -o 5cc $(OBJS)
 
-objs:$(SRCS)
-	for i in $^; do (echo target/$$i | sed 's/c$$/o/') | xargs  $(CC) -c  $$i -o; done;
+target/src/%.o: src/%.c
+	$(CC) -c -o target/src/$*.o src/$*.c
 
 target/test/%.exe: 5cc test/%.c
 	$(CC) -o- -E -P -C test/$*.c | ./5cc -o target/test/$*.s -
