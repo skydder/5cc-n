@@ -5,10 +5,10 @@
 
 static int depth;
 
-static char *argreg8[] = {"%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"};
-static char *argreg16[] = {"%di", "%si", "%dx", "%cx", "%r8w", "%r9w"};
-static char *argreg32[] = {"%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"};
-static char *argreg64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+static char *argreg8[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
+static char *argreg16[] = {"di", "si", "dx", "cx", "r8w", "r9w"};
+static char *argreg32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+static char *argreg64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 static Obj *current_fn;
 static FILE *output_file;
@@ -22,13 +22,21 @@ static void println(char *fmt, ...) {
     return ;
 }
 
+static void print(char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(output_file, fmt, ap);
+    va_end(ap);
+    return ;
+}
+
 static void comment(char *msg) {
-    putchar('#');
+    putchar('(');
     println(msg);
 }
 
 static void push(void) {
-  println("\tpush %%rax");
+  println("\tpush rax");
   depth++;
 }
 
@@ -50,33 +58,33 @@ static void load(Type *type) {
     if (type->kind == TY_ARRAY || type->kind == TY_STRUCT || type->kind == TY_UNION)
         return;
     if (type->size == 1)
-        println("\tmovsbq (%%rax), %%rax");
+        println("\tmove [rax by 8bit] to rax with sign-extention");
     else if (type->size == 2)
-        println("\tmovswq (%%rax), %%rax");
+        println("\tmove [rax by 16bit] to rax with sign-extention");
     else if (type->size == 4)
-        println("\tmovsxd (%%rax), %%rax");
+        println("\tmove [rax by 32bit] to rax with sign-extention");
     else
-        println("\tmov (%%rax), %%rax");
+        println("\tmove [rax] to rax");
     return;
 }
 
 static void store(Type *type) {
-    pop("%rdi");
+    pop("rdi");
     if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
         for (int i = 0; i < type->size; i++) {
-            println("\tmov %d(%%rax), %%r8b", i);
-            println("\tmov %%r8b, %d(%%rdi)", i);
+            println("\tmove [rax - %d], r8b", i);
+            println("\tmove r8b, [rdi - %d]", i);
         }
         return;
     }
     if (type->size == 1)
-        println("\tmov %%al, (%%rdi)");
+        println("\tmove al to [rdi]");
     else if (type->size == 2)
-        println("\tmov %%ax, (%%rdi)");
+        println("\tmove ax to [rdi]");
     else if (type->size == 4)
-        println("\tmov %%eax, (%%rdi)");
+        println("\tmove eax to [rdi]");
     else
-        println("\tmov %%rax, (%%rdi)");
+        println("\tmove rax to [rdi]");
 }
 
 static void gen_stmt(Node *node);
@@ -86,9 +94,10 @@ static void gen_addr(Node *node) {
     switch (node->kind) {
     case ND_VAR:
         if (node->var->is_lvar) {
-            println("\tlea %d(%%rbp), %%rax", node->var->offset);
+            println("\tload-effective-address [rbp-%d] to rax", node->var->offset);
         } else {
-            println("\tlea %s(%%rip), %%rax", node->var->name);
+            println("\tload-effective-address [rip+%s] to rax", node->var->name);
+            // println("\tlea %s(%%rip), %%rax", node->var->name);
         }
         return;
     case ND_DEREF:
@@ -96,7 +105,7 @@ static void gen_addr(Node *node) {
         return;
     case ND_DOTS:
         gen_addr(node->lhs);
-        println("\tadd $%d, %%rax", node->member->offset);
+        println("\tadd %d to rax", node->member->offset);
         return;
     case ND_COMMA:
         gen_expr(node->lhs);
@@ -109,11 +118,11 @@ static void gen_addr(Node *node) {
 static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM:
-        println("\tmov $%ld, %%rax", node->val);
+        println("\tmove %ld to rax", node->val);
         return;
     case ND_NEG:
         gen_expr(node->lhs);
-        println("\tneg %%rax");
+        println("\tnegate rax");
         return;
     case ND_VAR:
         gen_addr(node);
@@ -155,7 +164,7 @@ static void gen_expr(Node *node) {
         for (int i = nargs - 1; i >= 0; i--)
             pop(argreg64[i]);
 
-        println("\tmov $0, %%rax");
+        println("\tmove 0 to rax");
         println("\tcall %s", node->fn_name);
         return;
     }
@@ -164,50 +173,50 @@ static void gen_expr(Node *node) {
     gen_expr(node->rhs);
     push();
     gen_expr(node->lhs);
-    pop("%rdi");
+    pop("rdi");
 
     char *ax, *di;
 
     if (node->lhs->type->kind == TY_LONG || node->lhs->type->base) {
-        ax = "%rax";
-        di = "%rdi";
+        ax = "rax";
+        di = "rdi";
     } else {
-        ax = "%eax";
-        di = "%edi";
+        ax = "eax";
+        di = "edi";
     }
 
     switch (node->kind) {
     case ND_ADD:
-        println("\tadd %s, %s", di, ax);
+        println("\tadd %s to %s", di, ax);
         return;
     case ND_SUB:
-        println("\tsub %s, %s", di, ax);
+        println("\tsubstract %s from %s", di, ax);
         return;
     case ND_MUL:
-        println("\timul %s, %s", di, ax);
+        println("\tmultiply %s by %s as signed", ax, di);
         return;
     case ND_DIV:
         if (node->lhs->type->size == 8)
-            println("\tcqo");
+            println("\textend-*ax-reg by 64bit");
         else
-            println("\tcdq");
-        println("\tidiv %s", di);   
+            println("\extend-*ax-reg by 32bit");
+        println("\tdivide %s as signed", di);   
         return;
     case ND_EQ:
     case ND_NE:
     case ND_LE:
     case ND_LT:
-        println("\tcmp %s, %s", di, ax);
+        println("\tcompare %s to %s", ax, di);
         if (node->kind == ND_EQ) {
-            println("\tsete %%al");
+            println("\tset al if ==");
         } else if (node->kind == ND_NE) {
-            println("\tsetne %%al");
+            println("\tset al if !=");
         } else if (node->kind == ND_LT) {
-            println("\tsetl %%al");
+            println("\tset al if <");
         } else if (node->kind == ND_LE) {
-            println("\tsetle %%al");
+            println("\tset al if <=");
         }
-        println("\tmovzb %%al, %%rax");
+        println("\tmov al to rax with sign-extended");
         return;
     }
 
@@ -221,7 +230,7 @@ static void gen_stmt(Node *node) {
         return;
     case ND_RETURN:
         gen_expr(node->lhs);
-        println("\tjmp .L.return.%s", current_fn->name);
+        println("\tjump to .L.return.%s", current_fn->name);
         return;
     case ND_BLOCK:
         for (Node *n = node->body; n; n = n->next)
@@ -230,32 +239,32 @@ static void gen_stmt(Node *node) {
     case ND_IF:{
         int c = count();
         gen_expr(node->cond);
-        println("\tcmp $0, %%rax");
-        println("\tje  .L.else.%d", c);
+        println("\tcompare rax to 0");
+        println("\tjump to .L.else.%d if ==", c);
         gen_stmt(node->then);
-        println("\tjmp .L.end.%d", c);
-        println(".L.else.%d:", c);
+        println("\tjump to .L.end.%d", c);
+        println("#.L.else.%d", c);
         if (node->_else)
             gen_stmt(node->_else);
-        println(".L.end.%d:", c);
+        println("#.L.end.%d", c);
         return;
     }
     case ND_FOR:{
         int c = count();
         if (node->init)
             gen_stmt(node->init);
-        println(".L.begin.%d:", c);
+        println("#.L.begin.%d", c);
         if (node->cond) {
             gen_expr(node->cond);
-            println("\tcmp $0, %%rax");
-            println("\tje  .L.end.%d", c);
+            println("\tcompare rax to 0");
+            println("\tjump to .L.end.%d if ==", c);
         }
         
         gen_stmt(node->then);
         if (node->inc)
             gen_expr(node->inc);
-        println("\tjmp .L.begin.%d", c);
-        println(".L.end.%d:", c);
+        println("\tjump to .L.begin.%d", c);
+        println("#.L.end.%d", c);
         return;
     }
     }
@@ -268,7 +277,8 @@ static void InitLVarOffset(Obj *func) {
     for (Obj *lv = func->locals; lv; lv = lv->next) {
         offset += lv->type->size;
         offset = align_to(offset, lv->type->align);
-        lv->offset = -offset;
+        // lv->offset = -offset;
+        lv->offset = offset;
     }
     func->stack_size = align_to(offset, 16);
 }
@@ -276,16 +286,20 @@ static void InitLVarOffset(Obj *func) {
 static void store_param(int r, int offset, int size) {
     switch (size) {
     case 1:
-        println("\tmov %s, %d(%%rbp)", argreg8[r], offset);
+        // println("\tmov %s, %d(%%rbp)", argreg8[r], offset);
+        println("\tmove %s, [rbp - %d]", argreg8[r], offset);
         return;
     case 2:
-        println("\tmov %s, %d(%%rbp)", argreg16[r], offset);
+        // println("\tmov %s, %d(%%rbp)", argreg16[r], offset);
+        println("\tmove %s, [rbp - %d]", argreg16[r], offset);
         return;
     case 4:
-        println("\tmov %s, %d(%%rbp)", argreg32[r], offset);
+        // println("\tmov %s, %d(%%rbp)", argreg32[r], offset);
+        println("\tmove %s, [rbp - %d]", argreg32[r], offset);
         return;
     case 8:
-        println("\tmov %s, %d(%%rbp)", argreg64[r], offset);
+        // println("\tmov %s, %d(%%rbp)", argreg64[r], offset);
+        println("\tmove %s, [rbp - %d]", argreg64[r], offset);
         return;
   }
   Error("something is wrong");
@@ -295,15 +309,20 @@ static void EmitData(Obj* gvar) {
     for (Obj *var = gvar; var; var = var->next) {
         if (var->is_func) continue;
 
-        println(".data");
-        println("\t.global %s", var->name);
-        println("%s:", var->name);
+        
         
         if (var->init_data) {
-            for (int i = 0; i < var->type->array_len; i++)
-                println("\t.byte %d", var->init_data[i]);
+            println("@.data");
+            println("\tglobalize %s", var->name);
+            print("\tdefine %s as [", var->name);
+            print("%d", var->init_data[0]);
+            for (int i = 1; i < var->type->array_len; i++)
+                print(",%d", var->init_data[i]);
+            println("] by 8bit");
         } else {
-            println("\t.zero %d", var->type->size);
+            println("@.bss");
+            println("\tglobalize %s", var->name);
+            println("\tallocate %s by 8bit for %d", var->name, var->type->size);
         }
     }
 }
@@ -314,14 +333,14 @@ static void EmitFunc(Obj *func) {
         assert(fn->is_func);
         InitLVarOffset(fn);
         current_fn = fn;
-        println(".text");
-        println("\t.globl %s", fn->name);
+        println("@.text");
+        println("\tglobalize %s", fn->name);
         
-        println("%s:", fn->name);
+        println("#%s", fn->name);
 
-        println("\tpush %%rbp");
-        println("\tmov %%rsp, %%rbp");
-        println("\tsub $%d, %%rsp", fn->stack_size);
+        println("\tpush rbp");
+        println("\tmove rsp to rbp");
+        println("\tsubstract %d from rsp", fn->stack_size);
 
         int i = 0;
         for (Obj *var = fn->params; var; var = var->next) {
@@ -332,10 +351,10 @@ static void EmitFunc(Obj *func) {
             gen_stmt(n);
             assert(depth == 0);
         }
-        println(".L.return.%s:", fn->name);
-        println("\tmov %%rbp, %%rsp");
-        println("\tpop %%rbp");
-        println("\tret");
+        println("#.L.return.%s", fn->name);
+        println("\tmove rbp to rsp");
+        println("\tpop rbp");
+        println("\treturn");
     }
 }
 
