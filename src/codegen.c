@@ -31,7 +31,7 @@ static void print(char *fmt, ...) {
 }
 
 static void comment(char *msg) {
-    putchar('(');
+    print("(");
     println(msg);
 }
 
@@ -55,6 +55,7 @@ int align_to(int n, int align) {
 }
 
 static void load(Type *type) {
+    comment("gen_load");
     if (type->kind == TY_ARRAY || type->kind == TY_STRUCT || type->kind == TY_UNION)
         return;
     if (type->size == 1)
@@ -69,11 +70,12 @@ static void load(Type *type) {
 }
 
 static void store(Type *type) {
+    comment("gen_store");
     pop("rdi");
     if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
         for (int i = 0; i < type->size; i++) {
-            println("\tmove @[rax - %d] to r8b", i);
-            println("\tmove r8b to @[rdi - %d]", i);
+            println("\tmove @[rax + %d] to r8b", i);
+            println("\tmove r8b to @[rdi + %d]", i);
         }
         return;
     }
@@ -91,6 +93,7 @@ static void gen_stmt(Node *node);
 static void gen_expr(Node *node);
 
 static void gen_addr(Node *node) {
+    comment("gen_addr");
     switch (node->kind) {
     case ND_VAR:
         if (node->var->is_lvar) {
@@ -117,6 +120,7 @@ static void gen_addr(Node *node) {
 }
 
 static void gen_expr(Node *node) {
+    comment("gen_expr");
     switch (node->kind) {
     case ND_NUM:
         println("\tmove %ld to rax", node->val);
@@ -225,6 +229,7 @@ static void gen_expr(Node *node) {
 }
 
 static void gen_stmt(Node *node) {
+    comment("gen_stmt");
     switch (node->kind) {
     case ND_EXPR_STMT:
         gen_expr(node->lhs);
@@ -285,6 +290,7 @@ static void InitLVarOffset(Obj *func) {
 }
 
 static void store_param(int r, int offset, int size) {
+    comment("storing paramater");
     switch (size) {
     case 1:
         // println("\tmov %s, %d(%%rbp)", argreg8[r], offset);
@@ -307,6 +313,7 @@ static void store_param(int r, int offset, int size) {
 }
 
 static void EmitData(Obj* gvar) {
+    comment("emit data");
     for (Obj *var = gvar; var; var = var->next) {
         if (var->is_func) continue;
 
@@ -329,6 +336,7 @@ static void EmitData(Obj* gvar) {
 }
 
 static void EmitFunc(Obj *func) {
+    comment("emit func");
     for (Obj *fn = func; fn; fn = fn->next) {
         if (!fn->is_func || !fn->is_def) continue;
         assert(fn->is_func);
