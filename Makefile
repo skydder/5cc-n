@@ -9,18 +9,17 @@ CC=gcc
 5cc:$(OBJS)
 	$(CC) -o 5cc $(OBJS)
 
-target/src/%.o: src/%.c
+target:make-target.sh
+	./make-target.sh
+
+target/src/%.o: src/%.c target
 	$(CC) -c -o target/src/$*.o src/$*.c
 
-target/test/%.exe: 5cc test/%.c
+target/test/%.exe: 5cc test/%.c target
 	$(CC) -o- -E -P -C test/$*.c | ./5cc -o target/test/$*.s -
-	# gcc -c -o test/common.o -xc test/common 
-	
-	# $(CC) -o $@ target/test/$*.s -xc test/common
 
 test: $(TESTS)
-	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
-	# test/test2.sh
+	
 
 clean:
 	rm -f 5cc target/src/*.o  target/test/*.s target/test/*.exe
