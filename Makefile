@@ -24,4 +24,4 @@ test: $(TESTS)
 clean:
 	rm -f 5cc target/src/*.o  target/test/*.s target/test/*.exe
 
-.PHONY: test clean
+.PHONY: test clean target
