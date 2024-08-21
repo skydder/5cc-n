@@ -59,13 +59,13 @@ static void load(Type *type) {
     if (type->kind == TY_ARRAY || type->kind == TY_STRUCT || type->kind == TY_UNION)
         return;
     if (type->size == 1)
-        println("\tmove @[rax by 8bit] to rax with sign-extention");
+        println("\tmove *(rax by 8bit) to rax with sign-extention");
     else if (type->size == 2)
-        println("\tmove @[rax by 16bit] to rax with sign-extention");
+        println("\tmove *(rax by 16bit) to rax with sign-extention");
     else if (type->size == 4)
-        println("\tmove @[rax by 32bit] to rax with sign-extention");
+        println("\tmove *(rax by 32bit) to rax with sign-extention");
     else
-        println("\tmove @[rax] to rax");
+        println("\tmove *(rax) to rax");
     return;
 }
 
@@ -74,19 +74,19 @@ static void store(Type *type) {
     pop("rdi");
     if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
         for (int i = 0; i < type->size; i++) {
-            println("\tmove @[rax + %d] to r8b", i);
-            println("\tmove r8b to @[rdi + %d]", i);
+            println("\tmove *(rax + %d) to r8b", i);
+            println("\tmove r8b to *(rdi + %d)", i);
         }
         return;
     }
     if (type->size == 1)
-        println("\tmove al to @[rdi]");
+        println("\tmove al to *(rdi)");
     else if (type->size == 2)
-        println("\tmove ax to @[rdi]");
+        println("\tmove ax to *(rdi)");
     else if (type->size == 4)
-        println("\tmove eax to @[rdi]");
+        println("\tmove eax to *(rdi)");
     else
-        println("\tmove rax to @[rdi]");
+        println("\tmove rax to *(rdi)");
 }
 
 static void gen_stmt(Node *node);
@@ -97,9 +97,9 @@ static void gen_addr(Node *node) {
     switch (node->kind) {
     case ND_VAR:
         if (node->var->is_lvar) {
-            println("\tload-effective-address @[rbp-%d] to rax", node->var->offset);
+            println("\tload-effective-address *(rbp-%d) to rax", node->var->offset);
         } else {
-            // println("\tload-effective-address @[rip+%s] to rax", node->var->name);
+            // println("\tload-effective-address *(rip+%s) to rax", node->var->name);
             println("\tmove %s to rax", node->var->name);
             // println("\tlea %s(%%rip), %%rax", node->var->name);
         }
@@ -294,19 +294,19 @@ static void store_param(int r, int offset, int size) {
     switch (size) {
     case 1:
         // println("\tmov %s, %d(%%rbp)", argreg8[r], offset);
-        println("\tmove %s to @[rbp - %d]", argreg8[r], offset);
+        println("\tmove %s to *(rbp - %d)", argreg8[r], offset);
         return;
     case 2:
         // println("\tmov %s, %d(%%rbp)", argreg16[r], offset);
-        println("\tmove %s to @[rbp - %d]", argreg16[r], offset);
+        println("\tmove %s to *(rbp - %d)", argreg16[r], offset);
         return;
     case 4:
         // println("\tmov %s, %d(%%rbp)", argreg32[r], offset);
-        println("\tmove %s to @[rbp - %d]", argreg32[r], offset);
+        println("\tmove %s to *(rbp - %d)", argreg32[r], offset);
         return;
     case 8:
         // println("\tmov %s, %d(%%rbp)", argreg64[r], offset);
-        println("\tmove %s to @[rbp - %d]", argreg64[r], offset);
+        println("\tmove %s to *(rbp - %d)", argreg64[r], offset);
         return;
   }
   Error("something is wrong");
