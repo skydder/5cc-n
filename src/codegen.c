@@ -55,7 +55,7 @@ int align_to(int n, int align) {
 }
 
 static void load(Type *type) {
-    comment("gen_load");
+    // comment("gen_load");
     if (type->kind == TY_ARRAY || type->kind == TY_STRUCT || type->kind == TY_UNION)
         return;
     if (type->size == 1)
@@ -70,7 +70,7 @@ static void load(Type *type) {
 }
 
 static void store(Type *type) {
-    comment("gen_store");
+    // comment("gen_store");
     pop("rdi");
     if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
         for (int i = 0; i < type->size; i++) {
@@ -93,7 +93,7 @@ static void gen_stmt(Node *node);
 static void gen_expr(Node *node);
 
 static void gen_addr(Node *node) {
-    comment("gen_addr");
+    // comment("gen_addr");
     switch (node->kind) {
     case ND_VAR:
         if (node->var->is_lvar) {
@@ -120,7 +120,7 @@ static void gen_addr(Node *node) {
 }
 
 static void gen_expr(Node *node) {
-    comment("gen_expr");
+    // comment("gen_expr");
     switch (node->kind) {
     case ND_NUM:
         println("\tmove %ld to rax", node->val);
@@ -198,20 +198,20 @@ static void gen_expr(Node *node) {
         println("\tsubstract %s from %s", di, ax);
         return;
     case ND_MUL:
-        println("\tmultiply %s by %s with sign-extention", ax, di);
+        println("\tmultiply %s by %s as signed", ax, di);
         return;
     case ND_DIV:
         if (node->lhs->type->size == 8)
             println("\textend-*ax-reg by 64bit");
         else
             println("\textend-*ax-reg by 32bit");
-        println("\tdivide %s as signed", di);   
+        println("\tdivide by %s as signed", di);   
         return;
     case ND_EQ:
     case ND_NE:
     case ND_LE:
     case ND_LT:
-        println("\tcompare %s to %s", ax, di);
+        println("\tcompare %s with %s", di, ax);
         if (node->kind == ND_EQ) {
             println("\tset-byte to al if ==");
         } else if (node->kind == ND_NE) {
@@ -229,7 +229,7 @@ static void gen_expr(Node *node) {
 }
 
 static void gen_stmt(Node *node) {
-    comment("gen_stmt");
+    // comment("gen_stmt");
     switch (node->kind) {
     case ND_EXPR_STMT:
         gen_expr(node->lhs);
@@ -245,7 +245,7 @@ static void gen_stmt(Node *node) {
     case ND_IF:{
         int c = count();
         gen_expr(node->cond);
-        println("\tcompare rax to 0");
+        println("\tcompare 0 with rax");
         println("\tjump to .L.else.%d if ==", c);
         gen_stmt(node->then);
         println("\tjump to .L.end.%d", c);
@@ -262,7 +262,7 @@ static void gen_stmt(Node *node) {
         println("#.L.begin.%d", c);
         if (node->cond) {
             gen_expr(node->cond);
-            println("\tcompare rax to 0");
+            println("\tcompare 0 with rax");
             println("\tjump to .L.end.%d if ==", c);
         }
         
@@ -313,7 +313,7 @@ static void store_param(int r, int offset, int size) {
 }
 
 static void EmitData(Obj* gvar) {
-    comment("emit data");
+    // comment("emit data");
     for (Obj *var = gvar; var; var = var->next) {
         if (var->is_func) continue;
 
@@ -336,7 +336,7 @@ static void EmitData(Obj* gvar) {
 }
 
 static void EmitFunc(Obj *func) {
-    comment("emit func");
+    // comment("emit func");
     for (Obj *fn = func; fn; fn = fn->next) {
         if (!fn->is_func || !fn->is_def) continue;
         assert(fn->is_func);
