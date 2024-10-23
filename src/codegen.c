@@ -59,11 +59,11 @@ static void load(Type *type) {
     if (type->kind == TY_ARRAY || type->kind == TY_STRUCT || type->kind == TY_UNION)
         return;
     if (type->size == 1)
-        println("\tmove *(rax by 8bit) to rax with sign-extention");
+        println("\tmove *(rax by 8bit) to rax with sign_extention");
     else if (type->size == 2)
-        println("\tmove *(rax by 16bit) to rax with sign-extention");
+        println("\tmove *(rax by 16bit) to rax with sign_extention");
     else if (type->size == 4)
-        println("\tmove *(rax by 32bit) to rax with sign-extention");
+        println("\tmove *(rax by 32bit) to rax with sign_extention");
     else
         println("\tmove *(rax) to rax");
     return;
@@ -97,7 +97,7 @@ static void gen_addr(Node *node) {
     switch (node->kind) {
     case ND_VAR:
         if (node->var->is_lvar) {
-            println("\tload-effective-address *(rbp-%d) to rax", node->var->offset);
+            println("\tload_effective_address *(rbp-%d) to rax", node->var->offset);
         } else {
             // println("\tload-effective-address *(rip+%s) to rax", node->var->name);
             println("\tmove %s to rax", node->var->name);
@@ -202,9 +202,9 @@ static void gen_expr(Node *node) {
         return;
     case ND_DIV:
         if (node->lhs->type->size == 8)
-            println("\textend-*ax-reg by 64bit");
+            println("\textend_acc_reg by 64bit");
         else
-            println("\textend-*ax-reg by 32bit");
+            println("\textend_acc_reg by 32bit");
         println("\tdivide by %s as signed", di);   
         return;
     case ND_EQ:
@@ -213,15 +213,15 @@ static void gen_expr(Node *node) {
     case ND_LT:
         println("\tcompare %s with %s", di, ax);
         if (node->kind == ND_EQ) {
-            println("\tset-byte to al if ==");
+            println("\tset_byte to al if ==");
         } else if (node->kind == ND_NE) {
-            println("\tset-byte to al if !=");
+            println("\tset_byte to al if !=");
         } else if (node->kind == ND_LT) {
-            println("\tset-byte to al if <");
+            println("\tset_byte to al if <");
         } else if (node->kind == ND_LE) {
-            println("\tset-byte to al if <=");
+            println("\tset_byte to al if <=");
         }
-        println("\tmove al to rax with sign-extention");
+        println("\tmove al to rax with sign_extention");
         return;
     }
 
