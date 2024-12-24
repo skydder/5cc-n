@@ -1,17 +1,20 @@
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "5cc.h"
 
 static int depth;
 
-static char *argreg8[] = {"%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"};
-static char *argreg16[] = {"%di", "%si", "%dx", "%cx", "%r8w", "%r9w"};
-static char *argreg32[] = {"%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"};
-static char *argreg64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+static char *argreg8[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
+static char *argreg16[] = {"di", "si", "dx", "cx", "r8w", "r9w"};
+static char *argreg32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+static char *argreg64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 static Obj *current_fn;
 static FILE *output_file;
+
+static int indent;
 
 static void println(char *fmt, ...) {
     va_list ap;
@@ -22,18 +25,63 @@ static void println(char *fmt, ...) {
     return ;
 }
 
+static void print_indent() {
+    for (int i = 0; i < indent; i++)
+        fprintf(output_file, "\t");
+}
+
+static void enter_block() {
+    print_indent();
+    fprintf(output_file, "{\n");
+    indent++;
+}
+
+static void leave_block() {
+    indent--;
+    print_indent();
+    fprintf(output_file, "}\n");
+}
+
+static void print_ins(char *fmt, ...) {
+    print_indent();
+    va_list ap;
+    va_start(ap, fmt);    
+    vfprintf(output_file, fmt, ap);
+    va_end(ap);
+    fprintf(output_file, "\n");
+}
+
+static void print_label(char *label, bool is_global, char *section, bool does_enter_block, ...) {
+    print_indent();
+    fprintf(output_file, "<");
+    va_list ap;
+    va_start(ap, label);    
+    vfprintf(output_file, label, ap);
+    va_end(ap);
+    if (is_global)
+        fprintf(output_file, " :global");
+    if (strlen(section) != 0)
+        fprintf(output_file, " :%s", section);
+    fprintf(output_file, ">");
+    if (does_enter_block) {
+        fprintf(output_file, " {");
+        indent++;
+    }
+    fprintf(output_file, "\n");
+}
+
 static void comment(char *msg) {
     putchar('#');
     println(msg);
 }
 
 static void push(void) {
-  println("\tpush %%rax");
+  print_ins("push(rax)");
   depth++;
 }
 
 static void pop(char *arg) {
-  println("\tpop %s", arg);
+  print_ins("pop(%s)", arg);
   depth--;
 }
 
@@ -50,13 +98,13 @@ static void load(Type *type) {
     if (type->kind == TY_ARRAY || type->kind == TY_STRUCT || type->kind == TY_UNION)
         return;
     if (type->size == 1)
-        println("\tmovsbq (%%rax), %%rax");
+        print_ins("mov(rax, ptr<byte>(rax, _, _, _))");
     else if (type->size == 2)
-        println("\tmovswq (%%rax), %%rax");
+        print_ins("mov(rax, ptr<word>(rax, _, _, _))");
     else if (type->size == 4)
-        println("\tmovsxd (%%rax), %%rax");
+        print_ins("mov(rax, ptr<dword>(rax, _, _, _))");
     else
-        println("\tmov (%%rax), %%rax");
+        print_ins("mov(rax, ptr<qword>(rax, _, _, _))");
     return;
 }
 
@@ -64,19 +112,19 @@ static void store(Type *type) {
     pop("%rdi");
     if (type->kind == TY_STRUCT || type->kind == TY_UNION) {
         for (int i = 0; i < type->size; i++) {
-            println("\tmov %d(%%rax), %%r8b", i);
-            println("\tmov %%r8b, %d(%%rdi)", i);
+            print_ins("mov(r8b, ptr(rax, _, _, %d))", i);
+            print_ins("mov(ptr(rdi, _, _, %d), r8b)", i);
         }
         return;
     }
     if (type->size == 1)
-        println("\tmov %%al, (%%rdi)");
+        print_ins("mov(ptr(rdi, _, _, _), al)");
     else if (type->size == 2)
-        println("\tmov %%ax, (%%rdi)");
+        print_ins("mov(ptr(rdi, _, _, _), ax)");
     else if (type->size == 4)
-        println("\tmov %%eax, (%%rdi)");
+        print_ins("mov(ptr(rdi, _, _, _), eax)");
     else
-        println("\tmov %%rax, (%%rdi)");
+        print_ins("mov(ptr(rdi, _, _, _), rax)");
 }
 
 static void gen_stmt(Node *node);
@@ -86,9 +134,10 @@ static void gen_addr(Node *node) {
     switch (node->kind) {
     case ND_VAR:
         if (node->var->is_lvar) {
-            println("\tlea %d(%%rbp), %%rax", node->var->offset);
+            print_ins("lea(rax, ptr(rbp, _, _, %d))", node->var->offset);
         } else {
-            println("\tlea %s(%%rip), %%rax", node->var->name);
+            // print_ins("\tlea %s(%%rip), %%rax", node->var->name);
+            print_ins("mov(rax, %s)", node->var->name);
         }
         return;
     case ND_DEREF:
@@ -96,7 +145,7 @@ static void gen_addr(Node *node) {
         return;
     case ND_DOTS:
         gen_addr(node->lhs);
-        println("\tadd $%d, %%rax", node->member->offset);
+        print_ins("add(rax, %d)", node->member->offset);
         return;
     case ND_COMMA:
         gen_expr(node->lhs);
@@ -109,11 +158,11 @@ static void gen_addr(Node *node) {
 static void gen_expr(Node *node) {
     switch (node->kind) {
     case ND_NUM:
-        println("\tmov $%ld, %%rax", node->val);
+        print_ins("mov(rax, %ld)", node->val);
         return;
     case ND_NEG:
         gen_expr(node->lhs);
-        println("\tneg %%rax");
+        print_ins("neg(rax)");
         return;
     case ND_VAR:
         gen_addr(node);
@@ -155,8 +204,8 @@ static void gen_expr(Node *node) {
         for (int i = nargs - 1; i >= 0; i--)
             pop(argreg64[i]);
 
-        println("\tmov $0, %%rax");
-        println("\tcall %s", node->fn_name);
+        print_ins("mov(rax, 0)");
+        print_ins("call(%s)", node->fn_name);
         return;
     }
     }
@@ -164,50 +213,50 @@ static void gen_expr(Node *node) {
     gen_expr(node->rhs);
     push();
     gen_expr(node->lhs);
-    pop("%rdi");
+    pop("rdi");
 
     char *ax, *di;
 
     if (node->lhs->type->kind == TY_LONG || node->lhs->type->base) {
-        ax = "%rax";
-        di = "%rdi";
+        ax = "rax";
+        di = "rdi";
     } else {
-        ax = "%eax";
-        di = "%edi";
+        ax = "eax";
+        di = "edi";
     }
 
     switch (node->kind) {
     case ND_ADD:
-        println("\tadd %s, %s", di, ax);
+        print_ins("add(%s, %s)", ax, di);
         return;
     case ND_SUB:
-        println("\tsub %s, %s", di, ax);
+        print_ins("sub(%s, %s)", ax, di);
         return;
     case ND_MUL:
-        println("\timul %s, %s", di, ax);
+        print_ins("imul(%s, %s)", ax, di);
         return;
     case ND_DIV:
         if (node->lhs->type->size == 8)
-            println("\tcqo");
+            print_ins("cqo()");
         else
-            println("\tcdq");
-        println("\tidiv %s", di);   
+            print_ins("cdq()");
+        print_ins("idiv(%s)", di);   
         return;
     case ND_EQ:
     case ND_NE:
     case ND_LE:
     case ND_LT:
-        println("\tcmp %s, %s", di, ax);
+        print_ins("cmp(%s, %s)", ax, di);
         if (node->kind == ND_EQ) {
-            println("\tsete %%al");
+            print_ins("sete(al)");
         } else if (node->kind == ND_NE) {
-            println("\tsetne %%al");
+            print_ins("setne(al)");
         } else if (node->kind == ND_LT) {
-            println("\tsetl %%al");
+            print_ins("setl(al)");
         } else if (node->kind == ND_LE) {
-            println("\tsetle %%al");
+            print_ins("setle(al)");
         }
-        println("\tmovzb %%al, %%rax");
+        print_ins("movzb(rax, al)");
         return;
     }
 
@@ -221,7 +270,7 @@ static void gen_stmt(Node *node) {
         return;
     case ND_RETURN:
         gen_expr(node->lhs);
-        println("\tjmp .L.return.%s", current_fn->name);
+        print_ins("jmp(L.return.%s)", current_fn->name);
         return;
     case ND_BLOCK:
         for (Node *n = node->body; n; n = n->next)
@@ -229,33 +278,44 @@ static void gen_stmt(Node *node) {
         return;
     case ND_IF:{
         int c = count();
+        enter_block();
         gen_expr(node->cond);
-        println("\tcmp $0, %%rax");
-        println("\tje  .L.else.%d", c);
+        print_ins("cmp(rax, 0)");
+        print_ins("je(L.else.%d)", c);
         gen_stmt(node->then);
-        println("\tjmp .L.end.%d", c);
-        println(".L.else.%d:", c);
-        if (node->_else)
+        print_ins("jmp(L.end.%d)", c);
+        // println(".L.else.%d:", c);
+        print_label("L.else.%d", false, "", node->_else, c);
+        if (node->_else) {
             gen_stmt(node->_else);
-        println(".L.end.%d:", c);
+            leave_block();
+        }
+        // println(".L.end.%d:", c);
+        print_label("L.end.%d", false, "", false, c);
+        leave_block();
         return;
     }
     case ND_FOR:{
         int c = count();
+        enter_block();
         if (node->init)
             gen_stmt(node->init);
-        println(".L.begin.%d:", c);
+        // println(".L.begin.%d:", c);
+        print_label("L.begin.%d", false, "", true, c);
         if (node->cond) {
             gen_expr(node->cond);
-            println("\tcmp $0, %%rax");
-            println("\tje  .L.end.%d", c);
+            print_ins("cmp(rax, 0)");
+            print_ins("je(L.end.%d)", c);
         }
         
         gen_stmt(node->then);
         if (node->inc)
             gen_expr(node->inc);
-        println("\tjmp .L.begin.%d", c);
-        println(".L.end.%d:", c);
+        print_ins("jmp(L.begin.%d)", c);
+        leave_block();
+        // println(".L.end.%d:", c);
+        print_label("L.end.%d", false, "", false, c);
+        leave_block();
         return;
     }
     }
@@ -276,16 +336,17 @@ static void InitLVarOffset(Obj *func) {
 static void store_param(int r, int offset, int size) {
     switch (size) {
     case 1:
-        println("\tmov %s, %d(%%rbp)", argreg8[r], offset);
+        print_ins("mov(ptr(rbp, _, _, %d), %s)", offset, argreg8[r]);
         return;
     case 2:
-        println("\tmov %s, %d(%%rbp)", argreg16[r], offset);
+        print_ins("mov(ptr(rbp, _, _, %d), %s)", offset, argreg16[r]);
         return;
     case 4:
-        println("\tmov %s, %d(%%rbp)", argreg32[r], offset);
+        print_ins("mov(ptr(rbp, _, _, %d), %s)", offset, argreg32[r]);
         return;
     case 8:
-        println("\tmov %s, %d(%%rbp)", argreg64[r], offset);
+        print_ins("mov(ptr(rbp, _, _, %d), %s)", offset, argreg64[r]);
+        // println("\tmov %s, %d(%%rbp)", argreg64[r], offset);
         return;
   }
   Error("something is wrong");
@@ -295,9 +356,10 @@ static void EmitData(Obj* gvar) {
     for (Obj *var = gvar; var; var = var->next) {
         if (var->is_func) continue;
 
-        println(".data");
-        println("\t.global %s", var->name);
-        println("%s:", var->name);
+        // println(".data");
+        // println("\t.global %s", var->name);
+        // println("%s:", var->name);
+        print_label(var->name, true, ".data", true);
         
         if (var->init_data) {
             for (int i = 0; i < var->type->array_len; i++)
@@ -305,6 +367,7 @@ static void EmitData(Obj* gvar) {
         } else {
             println("\t.zero %d", var->type->size);
         }
+        leave_block();
     }
 }
 
@@ -314,14 +377,16 @@ static void EmitFunc(Obj *func) {
         assert(fn->is_func);
         InitLVarOffset(fn);
         current_fn = fn;
-        println(".text");
-        println("\t.globl %s", fn->name);
-        
-        println("%s:", fn->name);
+        // println(".text");
+        // println("\t.globl %s", fn->name);
+        // println("%s:", fn->name);
 
-        println("\tpush %%rbp");
-        println("\tmov %%rsp, %%rbp");
-        println("\tsub $%d, %%rsp", fn->stack_size);
+        print_label(fn->name, true, ".text", true);
+        enter_block();
+        print_ins("push(rbp)");
+        print_ins("mov(rbp, rsp)");
+        print_ins("sub(rsp, %d)", fn->stack_size);
+        leave_block();
 
         int i = 0;
         for (Obj *var = fn->params; var; var = var->next) {
@@ -332,10 +397,13 @@ static void EmitFunc(Obj *func) {
             gen_stmt(n);
             assert(depth == 0);
         }
-        println(".L.return.%s:", fn->name);
-        println("\tmov %%rbp, %%rsp");
-        println("\tpop %%rbp");
-        println("\tret");
+        // println(".L.return.%s:", fn->name);
+        print_label("L.return.%s", false, "", true, fn->name);
+        print_ins("mov(rsp, rbp)");
+        print_ins("pop(rbp)");
+        print_ins("ret()");
+        leave_block();
+        leave_block();
     }
 }
 
