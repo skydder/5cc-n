@@ -35,7 +35,7 @@ static void print(char *fmt, ...) {
 
 static void print_indent() {
     for (int i = 0; i < indent; i++)
-        fprintf(output_file, "\t");
+        fprintf(output_file, "    ");
 }
 
 static void enter_block() {
@@ -309,7 +309,7 @@ static void gen_stmt(Node *node) {
     case ND_RETURN:{
         enter_block();
         gen_expr(node->lhs);
-        print_ins("jmp(L.return.%s)", current_fn->name);
+        print_ins("jmp(L_return_%s)", current_fn->name);
         leave_block();
         return;
     }
@@ -322,18 +322,18 @@ static void gen_stmt(Node *node) {
         int c = count();
         enter_block();
         gen_expr(node->cond);
-        print_ins("cmp(rax, 0), je(L.else.%d)", c);
+        print_ins("cmp(rax, 0), je(L_else_%d)", c);
         // print_ins("je(L.else.%d)", c);
         gen_stmt(node->then);
-        print_ins("jmp(L.end.%d)", c);
+        print_ins("jmp(L_end_%d)", c);
         // println(".L.else.%d:", c);
-        print_label("L.else.%d", false, "", node->_else, c);
+        print_label("L_else_%d", false, "", node->_else, c);
         if (node->_else) {
             gen_stmt(node->_else);
             leave_block();
         }
         // println(".L.end.%d:", c);
-        print_label("L.end.%d", false, "", false, c);
+        print_label("L_end_%d", false, "", false, c);
         leave_block();
         return;
     }
@@ -343,7 +343,7 @@ static void gen_stmt(Node *node) {
         if (node->init)
             gen_stmt(node->init);
         // println(".L.begin.%d:", c);
-        print_label("L.begin.%d", false, "", true, c);
+        print_label("L_begin_%d", false, "", true, c);
         if (node->cond) {
             gen_expr(node->cond);
             print_ins("cmp(rax, 0), je(L.end.%d)", c);
@@ -353,10 +353,10 @@ static void gen_stmt(Node *node) {
         gen_stmt(node->then);
         if (node->inc)
             gen_expr(node->inc);
-        print_ins("jmp(L.begin.%d)", c);
+        print_ins("jmp(L_begin_%d)", c);
         leave_block();
         // println(".L.end.%d:", c);
-        print_label("L.end.%d", false, "", false, c);
+        print_label("L_end_%d", false, "", false, c);
         leave_block();
         return;
     }
@@ -448,7 +448,7 @@ static void EmitFunc(Obj *func) {
             assert(depth == 0);
         }
         // println(".L.return.%s:", fn->name);
-        print_label("L.return.%s", false, "", true, fn->name);
+        print_label("L_return_%s", false, "", true, fn->name);
         print_ins("mov(rsp, rbp)");
         print_ins("pop(rbp)");
         print_ins("ret()");
@@ -460,7 +460,9 @@ static void EmitFunc(Obj *func) {
 
 void GenCode(Obj *prog, FILE *out) {
     output_file = out;
-
+    print_label("prep", true, "", true);
+    print_ins("extern(printf, assert_)");
+    leave_block();
     EmitData(prog);
     EmitFunc(prog);
 }
