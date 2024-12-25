@@ -25,6 +25,14 @@ static void println(char *fmt, ...) {
     return ;
 }
 
+static void print(char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(output_file, fmt, ap);
+    va_end(ap);
+    return ;
+}
+
 static void print_indent() {
     for (int i = 0; i < indent; i++)
         fprintf(output_file, "\t");
@@ -51,6 +59,15 @@ static void print_ins(char *fmt, ...) {
     fprintf(output_file, "\n");
 }
 
+// static void println_ins(char *fmt, ...) {
+//     print_indent();
+//     va_list ap;
+//     va_start(ap, fmt);    
+//     vfprintf(output_file, fmt, ap);
+//     va_end(ap);
+//     fprintf(output_file, "\n");
+// }
+
 static void print_label(char *label, bool is_global, char *section, bool does_enter_block, ...) {
     print_indent();
     fprintf(output_file, "<");
@@ -71,8 +88,8 @@ static void print_label(char *label, bool is_global, char *section, bool does_en
 }
 
 static void comment(char *msg) {
-    putchar('#');
-    println(msg);
+    print_indent();
+    println("#%s", msg);
 }
 
 static void push(void) {
@@ -165,8 +182,10 @@ static void gen_expr(Node *node) {
         print_ins("neg(rax)");
         return;
     case ND_VAR:
+        enter_block();
         gen_addr(node);
         load(node->type);
+        leave_block();
         return;
     case ND_ASSIGN:
         gen_addr(node->lhs);
@@ -195,6 +214,8 @@ static void gen_expr(Node *node) {
         return;
     case ND_FNCALL:{
         int nargs = 0;
+        comment("function-call");
+        enter_block();
         for (Node *arg = node->args; arg; arg = arg->next) {
             gen_expr(arg);
             push();
@@ -206,6 +227,7 @@ static void gen_expr(Node *node) {
 
         print_ins("mov(rax, 0)");
         print_ins("call(%s)", node->fn_name);
+        leave_block();
         return;
     }
     }
@@ -236,27 +258,40 @@ static void gen_expr(Node *node) {
         print_ins("imul(%s, %s)", ax, di);
         return;
     case ND_DIV:
+        // if (node->lhs->type->size == 8)
+        //     print_ins("cqo()");
+        // else
+        //     print_ins("cdq()");
+        // print_ins("idiv(%s)", di);   
         if (node->lhs->type->size == 8)
-            print_ins("cqo()");
+            print_ins("cqo(), idiv(%s)", di);
         else
-            print_ins("cdq()");
-        print_ins("idiv(%s)", di);   
+            print_ins("cdq(), idiv(%s)", di);
         return;
     case ND_EQ:
     case ND_NE:
     case ND_LE:
     case ND_LT:
-        print_ins("cmp(%s, %s)", ax, di);
+        // print_ins("cmp(%s, %s)", ax, di);
+        // if (node->kind == ND_EQ) {
+        //     print_ins("sete(al)");
+        // } else if (node->kind == ND_NE) {
+        //     print_ins("setne(al)");
+        // } else if (node->kind == ND_LT) {
+        //     print_ins("setl(al)");
+        // } else if (node->kind == ND_LE) {
+        //     print_ins("setle(al)");
+        // }
+        // print_ins("movzb(rax, al)");
         if (node->kind == ND_EQ) {
-            print_ins("sete(al)");
+            print_ins("cmp(%s, %s), sete(al), movzb(rax, al)", ax, di);
         } else if (node->kind == ND_NE) {
-            print_ins("setne(al)");
+            print_ins("cmp(%s, %s), setne(al), movzb(rax, al)", ax, di);
         } else if (node->kind == ND_LT) {
-            print_ins("setl(al)");
+            print_ins("cmp(%s, %s), setl(al), movzb(rax, al)", ax, di);
         } else if (node->kind == ND_LE) {
-            print_ins("setle(al)");
+            print_ins("cmp(%s, %s), setle(al), movzb(rax, al)", ax, di);
         }
-        print_ins("movzb(rax, al)");
         return;
     }
 
@@ -265,23 +300,30 @@ static void gen_expr(Node *node) {
 
 static void gen_stmt(Node *node) {
     switch (node->kind) {
-    case ND_EXPR_STMT:
+    case ND_EXPR_STMT:{
+        // enter_block();
         gen_expr(node->lhs);
+        // leave_block();
         return;
-    case ND_RETURN:
+    }
+    case ND_RETURN:{
+        enter_block();
         gen_expr(node->lhs);
         print_ins("jmp(L.return.%s)", current_fn->name);
+        leave_block();
         return;
-    case ND_BLOCK:
+    }
+    case ND_BLOCK:{
         for (Node *n = node->body; n; n = n->next)
             gen_stmt(n);
         return;
+    }
     case ND_IF:{
         int c = count();
         enter_block();
         gen_expr(node->cond);
-        print_ins("cmp(rax, 0)");
-        print_ins("je(L.else.%d)", c);
+        print_ins("cmp(rax, 0), je(L.else.%d)", c);
+        // print_ins("je(L.else.%d)", c);
         gen_stmt(node->then);
         print_ins("jmp(L.end.%d)", c);
         // println(".L.else.%d:", c);
@@ -304,8 +346,8 @@ static void gen_stmt(Node *node) {
         print_label("L.begin.%d", false, "", true, c);
         if (node->cond) {
             gen_expr(node->cond);
-            print_ins("cmp(rax, 0)");
-            print_ins("je(L.end.%d)", c);
+            print_ins("cmp(rax, 0), je(L.end.%d)", c);
+            // print_ins("je(L.end.%d)", c);
         }
         
         gen_stmt(node->then);
@@ -359,13 +401,19 @@ static void EmitData(Obj* gvar) {
         // println(".data");
         // println("\t.global %s", var->name);
         // println("%s:", var->name);
-        print_label(var->name, true, ".data", true);
+        // print_label(var->name, true, ".data", true);
         
         if (var->init_data) {
-            for (int i = 0; i < var->type->array_len; i++)
-                println("\t.byte %d", var->init_data[i]);
+            print_label(var->name, true, ".data", true);
+            print_indent();
+            print("db(%d", var->init_data[0]);
+            for (int i = 1; i < var->type->array_len; i++)
+                // println("\t.byte %d", var->init_data[i]);
+                print(", %d", var->init_data[0]);
+            println(")");
         } else {
-            println("\t.zero %d", var->type->size);
+            print_label(var->name, true, ".bss", true);
+            print_ins("resb(%d)", var->type->size);
         }
         leave_block();
     }
@@ -389,9 +437,11 @@ static void EmitFunc(Obj *func) {
         leave_block();
 
         int i = 0;
+        enter_block();
         for (Obj *var = fn->params; var; var = var->next) {
             store_param(i++, var->offset, var->type->size);
         }
+        leave_block();
 
         for (Node *n = fn->body; n; n = n->next) {
             gen_stmt(n);
@@ -403,6 +453,7 @@ static void EmitFunc(Obj *func) {
         print_ins("pop(rbp)");
         print_ins("ret()");
         leave_block();
+
         leave_block();
     }
 }
