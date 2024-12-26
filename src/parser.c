@@ -34,7 +34,7 @@ static bool IsTokenAtEof(Token *tok) {
 static char *NewUniqueName(void) {
     static int count = 0;
     char *name = calloc(sizeof(char), 16);
-    sprintf(name, "L_L_%d", count++);
+    sprintf(name, ".L_L_%d", count++);
     return name;
 }
 

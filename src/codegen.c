@@ -284,13 +284,13 @@ static void gen_expr(Node *node) {
         // }
         // print_ins("movzb(rax, al)");
         if (node->kind == ND_EQ) {
-            print_ins("cmp(%s, %s), sete(al), movzb(rax, al)", ax, di);
+            print_ins("cmp(%s, %s), sete(al), movzx(rax, al)", ax, di);
         } else if (node->kind == ND_NE) {
-            print_ins("cmp(%s, %s), setne(al), movzb(rax, al)", ax, di);
+            print_ins("cmp(%s, %s), setne(al), movzx(rax, al)", ax, di);
         } else if (node->kind == ND_LT) {
-            print_ins("cmp(%s, %s), setl(al), movzb(rax, al)", ax, di);
+            print_ins("cmp(%s, %s), setl(al), movzx(rax, al)", ax, di);
         } else if (node->kind == ND_LE) {
-            print_ins("cmp(%s, %s), setle(al), movzb(rax, al)", ax, di);
+            print_ins("cmp(%s, %s), setle(al), movzx(rax, al)", ax, di);
         }
         return;
     }
@@ -309,7 +309,7 @@ static void gen_stmt(Node *node) {
     case ND_RETURN:{
         enter_block();
         gen_expr(node->lhs);
-        print_ins("jmp(L_return_%s)", current_fn->name);
+        print_ins("jmp(.L_return_%s)", current_fn->name);
         leave_block();
         return;
     }
@@ -322,18 +322,18 @@ static void gen_stmt(Node *node) {
         int c = count();
         enter_block();
         gen_expr(node->cond);
-        print_ins("cmp(rax, 0), je(L_else_%d)", c);
+        print_ins("cmp(rax, 0), je(.L_else_%d)", c);
         // print_ins("je(L.else.%d)", c);
         gen_stmt(node->then);
-        print_ins("jmp(L_end_%d)", c);
+        print_ins("jmp(.L_end_%d)", c);
         // println(".L.else.%d:", c);
-        print_label("L_else_%d", false, "", node->_else, c);
+        print_label(".L_else_%d", false, "", node->_else, c);
         if (node->_else) {
             gen_stmt(node->_else);
             leave_block();
         }
         // println(".L.end.%d:", c);
-        print_label("L_end_%d", false, "", false, c);
+        print_label(".L_end_%d", false, "", false, c);
         leave_block();
         return;
     }
@@ -343,20 +343,20 @@ static void gen_stmt(Node *node) {
         if (node->init)
             gen_stmt(node->init);
         // println(".L.begin.%d:", c);
-        print_label("L_begin_%d", false, "", true, c);
+        print_label(".L_begin_%d", false, "", true, c);
         if (node->cond) {
             gen_expr(node->cond);
-            print_ins("cmp(rax, 0), je(L.end.%d)", c);
+            print_ins("cmp(rax, 0), je(.L_end_%d)", c);
             // print_ins("je(L.end.%d)", c);
         }
         
         gen_stmt(node->then);
         if (node->inc)
             gen_expr(node->inc);
-        print_ins("jmp(L_begin_%d)", c);
+        print_ins("jmp(.L_begin_%d)", c);
         leave_block();
         // println(".L.end.%d:", c);
-        print_label("L_end_%d", false, "", false, c);
+        print_label(".L_end_%d", false, "", false, c);
         leave_block();
         return;
     }
@@ -448,7 +448,7 @@ static void EmitFunc(Obj *func) {
             assert(depth == 0);
         }
         // println(".L.return.%s:", fn->name);
-        print_label("L_return_%s", false, "", true, fn->name);
+        print_label(".L_return_%s", false, "", true, fn->name);
         print_ins("mov(rsp, rbp)");
         print_ins("pop(rbp)");
         print_ins("ret()");
@@ -460,9 +460,7 @@ static void EmitFunc(Obj *func) {
 
 void GenCode(Obj *prog, FILE *out) {
     output_file = out;
-    print_label("prep", true, "", true);
     print_ins("extern(printf, assert_)");
-    leave_block();
     EmitData(prog);
     EmitFunc(prog);
 }
