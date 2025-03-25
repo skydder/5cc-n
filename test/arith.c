@@ -11,6 +11,9 @@ int main() {
   ASSERT(10, -10+20);
   ASSERT(10, - -10);
   ASSERT(10, - - +10);
+  ASSERT(1, 1%3);
+  ASSERT(2, 2%3);
+  ASSERT(0, 3%3);
 
   ASSERT(0, 0==1);
   ASSERT(1, 42==42);

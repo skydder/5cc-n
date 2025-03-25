@@ -207,6 +207,14 @@ static void gen_expr(Node *node) {
             println("\textend_acc_reg by 32bit");
         println("\tdivide by %s as signed", di);   
         return;
+    case ND_MOD:
+        if (node->lhs->type->size == 8)
+            println("\textend_acc_reg by 64bit");
+        else
+            println("\textend_acc_reg by 32bit");
+        println("\tdivide by %s as signed", di);
+        println("\tmove rdx to %s", ax);
+        return;
     case ND_EQ:
     case ND_NE:
     case ND_LE:
