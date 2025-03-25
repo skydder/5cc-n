@@ -71,6 +71,8 @@ void AddType(Node *node) {
     case ND_MUL:
     case ND_DIV:
     case ND_NEG:
+    case ND_MOD:
+    case ND_AND:
         node->type = node->lhs->type;
         return;
     case ND_COMMA:

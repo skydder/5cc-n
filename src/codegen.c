@@ -135,13 +135,13 @@ static void store(Type *type) {
     }
     print_comma();
     if (type->size == 1)
-        print("mov(ptr(rdi, _, _, _), al)");
+        print("mov(ptr<byte>(rdi, _, _, _), al)");
     else if (type->size == 2)
-        print("mov(ptr(rdi, _, _, _), ax)");
+        print("mov<word>(ptr(rdi, _, _, _), ax)");
     else if (type->size == 4)
-        print("mov(ptr(rdi, _, _, _), eax)");
+        print("mov(ptr<dword>(rdi, _, _, _), eax)");
     else
-        print("mov(ptr(rdi, _, _, _), rax)");
+        print("mov(ptr<qword>(rdi, _, _, _), rax)");
     put_newline();
 }
 
@@ -291,6 +291,20 @@ static void gen_expr(Node *node) {
             print("cdq(), idiv(%s)", di);
         put_newline();
         goto end_return;
+    case ND_MOD:
+        print_indent();
+        if (node->lhs->type->size == 8) {
+            print("cqo(), idiv(%s), mov(%s, rdx)", di, ax);
+        }else{
+            print("cdq(), idiv(%s), mov(%s, edx)", di, ax);
+        }
+        put_newline();
+        goto end_return;
+    case ND_AND:
+        print_indent();
+        println("and(%s, %s)", ax, di);
+        put_newline();
+        goto end_return;
     case ND_EQ:
     case ND_NE:
     case ND_LE:
@@ -327,7 +341,7 @@ static void gen_stmt(Node *node) {
         enter_block();
         gen_expr(node->lhs);
         print_indent();
-        print("jmp(.L_return_%s)", current_fn->name);
+        print("jmp(%s.L_return_%s)", current_fn->name, current_fn->name);
         put_newline();
         leave_block();
         return;
@@ -351,13 +365,13 @@ static void gen_stmt(Node *node) {
         print("jmp(.L_end_%d)", c);
         put_newline();
         // println(".L.else.%d:", c);
-        print_label(".L_else_%d", false, "", node->_else, c);
+        print_label("L_else_%d", false, "", node->_else, c);
         if (node->_else) {
             gen_stmt(node->_else);
             leave_block();
         }
         // println(".L.end.%d:", c);
-        print_label(".L_end_%d", false, "", false, c);
+        print_label("L_end_%d", false, "", false, c);
         leave_block();
         return;
     }
@@ -371,7 +385,7 @@ static void gen_stmt(Node *node) {
         }
         // println(".L.begin.%d:", c);
         
-        print_label(".L_begin_%d", false, "", true, c);
+        print_label("L_begin_%d", false, "", false, c);
         put_newline();
         if (node->cond) {
             comment("condition");
@@ -390,9 +404,8 @@ static void gen_stmt(Node *node) {
         print_indent();
         print("jmp(.L_begin_%d)", c);
         put_newline();
-        leave_block();
         // println(".L.end.%d:", c);
-        print_label(".L_end_%d", false, "", false, c);
+        print_label("L_end_%d", false, "", false, c);
         leave_block();
         return;
     }
@@ -481,21 +494,22 @@ static void EmitFunc(Obj *func) {
         print_comma();
         print("sub(rsp, %d)", fn->stack_size);
         put_newline();
-        leave_block();
+        // leave_block();
 
         int i = 0;
-        enter_block();
+        // enter_block();
         for (Obj *var = fn->params; var; var = var->next) {
             store_param(i++, var->offset, var->type->size);
         }
         leave_block();
+        // comment("===");
 
         for (Node *n = fn->body; n; n = n->next) {
             gen_stmt(n);
             assert(depth == 0);
         }
         // println(".L.return.%s:", fn->name);
-        print_label(".L_return_%s", false, "", true, fn->name);
+        print_label("L_return_%s", false, "", true, fn->name);
         print_indent();
         print("mov(rsp, rbp)");
         print_comma();
