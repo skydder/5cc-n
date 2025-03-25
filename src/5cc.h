@@ -21,6 +21,7 @@ typedef enum {
     ND_MUL,
     ND_DIV,
     ND_MOD,
+    ND_AND,
     ND_NEG,
     ND_NUM,
     ND_EQ, // ==

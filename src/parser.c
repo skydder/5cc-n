@@ -747,6 +747,10 @@ static Node *mul(Token **rest, Token *tok) {
             node = NewNodeBinary(ND_MOD, tok, node, unary(&tok, tok->next));
             continue;
         }
+        if (IsTokenEqual(tok, "&")) {
+            node = NewNodeBinary(ND_AND, tok, node, unary(&tok, tok->next));
+            continue;
+        }
         *rest = tok;
         return node;
     }
