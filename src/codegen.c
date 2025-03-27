@@ -193,6 +193,20 @@ static void gen_expr(Node *node) {
             println("\tcdq");
         println("\tidiv %s", di);   
         return;
+    case ND_MOD:
+        if (node->lhs->type->size == 8) {
+            println("\tcqo");
+            println("\tidiv %s", di); 
+            println("\tmov %%rdx, %s", ax);
+        } else {
+            println("\tcdq");
+            println("\tidiv %s", di); 
+            println("\tmov %%edx, %s", ax);
+        }
+        return;
+    case ND_AND:
+        println("and(%s, %s)", di, ax);
+        return;
     case ND_EQ:
     case ND_NE:
     case ND_LE:
